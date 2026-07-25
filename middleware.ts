@@ -7,7 +7,7 @@ import {
   type Role,
 } from '@/lib/auth/types'
 import { isAppRole, isMemberStatus } from '@/lib/auth/helpers'
-import { normalizeSupabaseUrl } from '@/lib/supabase-url'
+import { normalizeSupabaseUrl, isSupabaseConfigured } from '@/lib/supabase-url'
 
 function isProtectedPath(pathname: string) {
   if (pathname === '/admin/login' || pathname.startsWith('/admin/login/')) {
@@ -53,6 +53,9 @@ function allowedPath(
 }
 
 export async function middleware(req: NextRequest) {
+  // When Supabase isn't connected yet, skip all auth checks and let pages render.
+  if (!isSupabaseConfigured()) return NextResponse.next()
+
   let supabaseResponse = NextResponse.next({
     request: { headers: req.headers },
   })

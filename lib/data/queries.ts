@@ -252,20 +252,29 @@ export const getMemberDashboardData = unstable_cache(
 )
 
 export const getPublicProject = unstable_cache(
-  async (id: string) => prisma.project.findUnique({ where: { id } }),
+  async (id: string) => {
+    try { return await prisma.project.findUnique({ where: { id } }) }
+    catch { return null }
+  },
   ['public-project'],
   { tags: [TAGS.projects], revalidate: 300 },
 )
 
 export const getPublicGallery = unstable_cache(
-  async () =>
-    prisma.galleryPhoto.findMany({ where: { isPublic: true }, orderBy: { uploadedAt: 'desc' } }),
+  async () => {
+    try {
+      return await prisma.galleryPhoto.findMany({ where: { isPublic: true }, orderBy: { uploadedAt: 'desc' } })
+    } catch { return [] }
+  },
   ['public-gallery'],
   { tags: [TAGS.gallery], revalidate: 300 },
 )
 
 export const getPublicProjects = unstable_cache(
-  async () => prisma.project.findMany({ orderBy: { updatedAt: 'desc' } }),
+  async () => {
+    try { return await prisma.project.findMany({ orderBy: { updatedAt: 'desc' } }) }
+    catch { return [] }
+  },
   ['public-projects'],
   { tags: [TAGS.projects], revalidate: 300 },
 )
@@ -273,27 +282,29 @@ export const getPublicProjects = unstable_cache(
 // Returns public events with ISO string dates for the public events page
 export const getPublicEvents = unstable_cache(
   async () => {
-    const events = await prisma.event.findMany({
-      where: { isPublic: true },
-      orderBy: { startsAt: 'asc' },
-      select: {
-        id: true, title: true, description: true, location: true,
-        startsAt: true, imageUrl: true,
-      },
-    })
-    const now = new Date()
-    const rows = events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      description: e.description ?? null,
-      location: e.location ?? null,
-      imageUrl: e.imageUrl ?? null,
-      startsAt: e.startsAt.toISOString(),
-    }))
-    return {
-      upcoming: rows.filter((e) => new Date(e.startsAt) >= now),
-      past: rows.filter((e) => new Date(e.startsAt) < now).reverse().slice(0, 6),
-    }
+    try {
+      const events = await prisma.event.findMany({
+        where: { isPublic: true },
+        orderBy: { startsAt: 'asc' },
+        select: {
+          id: true, title: true, description: true, location: true,
+          startsAt: true, imageUrl: true,
+        },
+      })
+      const now = new Date()
+      const rows = events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        description: e.description ?? null,
+        location: e.location ?? null,
+        imageUrl: e.imageUrl ?? null,
+        startsAt: e.startsAt.toISOString(),
+      }))
+      return {
+        upcoming: rows.filter((e) => new Date(e.startsAt) >= now),
+        past: rows.filter((e) => new Date(e.startsAt) < now).reverse().slice(0, 6),
+      }
+    } catch { return { upcoming: [], past: [] } }
   },
   ['public-events'],
   { tags: [TAGS.events], revalidate: 300 },

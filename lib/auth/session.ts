@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/utils/supabase/server'
 import { createServerClient as createServiceClient } from '@/lib/supabase-server'
+import { isSupabaseConfigured } from '@/lib/supabase-url'
 import type { AuthUser, Role } from './types'
 import { isAppRole, toAuthUser } from './helpers'
 import type { MemberStatus, User } from '@prisma/client'
@@ -62,6 +63,7 @@ function makeInitials(fullName: string) {
 }
 
 export async function getSessionProfile(): Promise<SessionProfile | null> {
+  if (!isSupabaseConfigured()) return null
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
 

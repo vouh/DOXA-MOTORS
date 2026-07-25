@@ -3,3 +3,17 @@ export function normalizeSupabaseUrl(url: string | undefined) {
   if (!url) return ''
   return url.replace(/\/rest\/v1\/?$/i, '').replace(/\/$/, '')
 }
+
+/** Returns false when running with placeholder/missing credentials. */
+export function isSupabaseConfigured() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  return (
+    !!url &&
+    !url.includes('placeholder') &&
+    !!key &&
+    !key.includes('placeholder')
+  )
+}
