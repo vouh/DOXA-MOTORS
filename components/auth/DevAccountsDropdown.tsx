@@ -4,13 +4,6 @@
 // nothing in production builds, so these credentials never reach real users.
 const ACCOUNTS: { email: string; password: string; label: string }[] = [
   { email: 'superadmin@doxacarhire.com', password: 'SuperAdmin@2026!', label: 'Super Admin' },
-  { email: 'admin@doxacarhire.com', password: 'ChangeMe123!', label: 'Admin' },
-  { email: 'manager@doxacarhire.com', password: 'ChangeMe123!', label: 'Manager' },
-  { email: 'finance@doxacarhire.com', password: 'ChangeMe123!', label: 'Finance' },
-  { email: 'dispatch@doxacarhire.com', password: 'ChangeMe123!', label: 'Dispatch' },
-  { email: 'fleet@doxacarhire.com', password: 'ChangeMe123!', label: 'Fleet' },
-  { email: 'staff@doxacarhire.com', password: 'ChangeMe123!', label: 'Staff' },
-  { email: 'pending@doxacarhire.com', password: 'ChangeMe123!', label: 'Staff (pending)' },
 ]
 
 export default function DevAccountsDropdown({

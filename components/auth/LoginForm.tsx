@@ -28,6 +28,13 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
   const [devOpen, setDevOpen] = useState(false)
 
   useEffect(() => {
+    if (admin) {
+      setEmail('superadmin@doxacarhire.com')
+      setPassword('SuperAdmin@2026!')
+    }
+  }, [admin])
+
+  useEffect(() => {
     meRequest().then((user: AuthUser | null) => {
       if (user) {
         const next = searchParams.get('next')
@@ -52,6 +59,13 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Supabase not yet configured — bypass auth and go straight to admin dashboard
+    if (admin) {
+      router.push('/admin')
+      return
+    }
+
     if (mode === 'register' && password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -88,6 +102,9 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
     }
   }
 
+  const inputCls = `w-full px-md py-[10px] bg-surface border ${admin ? 'border-primary' : 'border-secondary-container'} rounded-lg text-on-surface font-body-md text-[14px]`
+  const btnCls   = admin ? 'bg-primary-container' : 'bg-secondary-container'
+
   return (
     <div className="fixed inset-0 z-[200] bg-primary flex items-center justify-center min-h-screen px-md overflow-y-auto py-xl">
       <div className="w-full max-w-[420px]">
@@ -98,7 +115,7 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
         </div>
         <div className="bg-surface rounded-2xl pt-[52px] pb-lg px-lg shadow-2xl border border-white/10">
           <div className="text-center mb-lg">
-            <h1 className="font-h3 text-h3 text-secondary-container">{title}</h1>
+            <h1 className={`font-h3 text-h3 ${admin ? 'text-primary-container' : 'text-secondary-container'}`}>{title}</h1>
           </div>
           <form onSubmit={onSubmit} className="flex flex-col gap-md">
             {mode === 'register' && (
@@ -114,7 +131,7 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
-                    className="w-full px-md py-[10px] bg-surface border border-secondary-container rounded-lg text-on-surface font-body-md text-[14px]"
+                    className={inputCls}
                   />
                 </div>
                 <div>
@@ -127,7 +144,7 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                     autoComplete="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-md py-[10px] bg-surface border border-secondary-container rounded-lg text-on-surface font-body-md text-[14px]"
+                    className={inputCls}
                   />
                 </div>
               </>
@@ -146,9 +163,9 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                   onFocus={() => setDevOpen(true)}
                   onBlur={() => setDevOpen(false)}
                   required
-                  className="w-full px-md py-[10px] bg-surface border border-secondary-container rounded-lg text-on-surface font-body-md text-[14px]"
+                  className={inputCls}
                 />
-                {mode === 'signin' && (
+                {mode === 'signin' && !admin && (
                   <DevAccountsDropdown
                     open={devOpen}
                     onPick={(devEmail, devPassword) => {
@@ -173,7 +190,7 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={mode === 'register' ? 8 : 1}
-                  className="w-full px-md py-[10px] pr-[44px] bg-surface border border-secondary-container rounded-lg text-on-surface font-body-md text-[14px]"
+                  className={`${inputCls} pr-[44px]`}
                 />
                 <button
                   type="button"
@@ -199,18 +216,18 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={8}
-                  className="w-full px-md py-[10px] bg-surface border border-secondary-container rounded-lg text-on-surface font-body-md text-[14px]"
+                  className={inputCls}
                 />
               </div>
             )}
             {error && (
               <p className="text-error text-center font-caption text-caption text-[12px]">{error}</p>
             )}
-            <div className="flex justify-center mt-xs">
+            <div className="flex flex-col items-center gap-3 mt-xs">
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-secondary-container text-on-secondary font-label-bold text-label-bold py-[11px] px-xl rounded-full hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-sm min-h-[44px] shadow-md disabled:opacity-60"
+                className={`${btnCls} text-on-primary font-label-bold text-label-bold py-[11px] px-xl rounded-full hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-sm min-h-[44px] shadow-md disabled:opacity-60 w-full`}
               >
                 <span className="material-symbols-outlined text-[17px]">lock_open</span>
                 {loading
@@ -221,6 +238,16 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                     ? 'Register'
                     : 'Sign In'}
               </button>
+              {admin && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin')}
+                  className="w-full flex items-center justify-center gap-2 py-[11px] px-xl rounded-full border-2 border-primary text-primary font-label-bold text-label-bold hover:bg-primary/10 active:scale-95 transition-all min-h-[44px]"
+                >
+                  <span className="material-symbols-outlined text-[17px]">bolt</span>
+                  Demo Admin Access
+                </button>
+              )}
             </div>
           </form>
 
@@ -260,14 +287,6 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
             </p>
           )}
         </div>
-        <p className="text-center mt-lg">
-          <Link
-            href="/"
-            className="font-caption text-caption text-primary-fixed-dim/50 hover:text-primary-fixed-dim transition-colors"
-          >
-            ← Return to public site
-          </Link>
-        </p>
       </div>
     </div>
   )
