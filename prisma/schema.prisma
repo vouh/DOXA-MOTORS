@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  EXECUTIVE
+  TREASURER
+  SECRETARY
+  ORGANIZER
+  MEMBER
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ProjectStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+}
+
+enum WelfareStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  BANK
+  OTHER
+}
+
+enum MeetingStatus {
+  DRAFT
+  FINAL
+}
+
+model User {
+  id              String       @id @default(cuid())
+  authUserId      String?      @unique
+  email           String       @unique
+  fullName        String
+  phone           String?
+  location        String?
+  role            Role         @default(MEMBER)
+  status          MemberStatus @default(PENDING)
+  isSuperAdmin    Boolean      @default(false)
+  dashboardAccess Role[]       @default([])
+  avatarUrl       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  contributions        Contribution[]
+  welfareRequests      WelfareRequest[]
+  auditLogs            AuditLog[]
+  announcements        Announcement[]
+  announcementReceipts AnnouncementReceipt[]
+  documents            Document[]
+  meetings             Meeting[]      @relation("MeetingRecorder")
+  galleryPhotos        GalleryPhoto[]
+  emailLogs            EmailLog[]
+
+  @@map("users")
+}
+
+model Contribution {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Float
+  description   String?
+  category      String?
+  paymentMethod PaymentMethod @default(CASH)
+  receivedBy    String?
+  statementRef  String?
+  paidAt        DateTime      @default(now())
+  mpesaRef      String?
+  createdAt     DateTime      @default(now())
+
+  @@index([userId])
+  @@index([paidAt])
+  @@map("contributions")
+}
+
+model WelfareRequest {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  amount      Float?
+  status      WelfareStatus @default(PENDING)
+  reviewNote  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("welfare_requests")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  status      ProjectStatus @default(UPCOMING)
+  imageUrl    String?
+  progress    Int           @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("projects")
+}
+
+model GalleryPhoto {
+  id         String    @id @default(cuid())
+  url        String
+  caption    String?
+  category   String?
+  isPublic   Boolean   @default(false)
+  approvedAt DateTime?
+  uploadedBy String?
+  uploader   User?     @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  uploadedAt DateTime  @default(now())
+
+  @@map("gallery_photos")
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  imageUrl    String?
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  broadcast   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  emailSentAt DateTime?
+  expiresAt   DateTime? // auto-set to 48h after publish; shown as reminder badge to author
+
+  receipts AnnouncementReceipt[]
+
+  @@map("announcements")
+}
+
+model AnnouncementReceipt {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+  @@map("announcement_receipts")
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  location    String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  imageUrl    String?
+  isPublic    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@map("events")
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  title      String
+  fileUrl    String
+  category   String?
+  uploadedBy String
+  uploader   User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+  uploadedAt DateTime @default(now())
+
+  publishedMeeting Meeting?
+
+  @@map("documents")
+}
+
+model Meeting {
+  id                  String        @id @default(cuid())
+  title               String
+  agenda              String?
+  minutes             String?
+  opening             String?
+  attendees           String?   // members present
+  membersAbsent       String?   // absent without apology
+  membersApology      String?   // absent with apology
+  aob                 String?   // any other business
+  nextMeetingAt       DateTime?
+  status              MeetingStatus @default(DRAFT)
+  heldAt              DateTime
+  attendance          Int           @default(0)
+  recordedBy          String
+  recorder            User          @relation("MeetingRecorder", fields: [recordedBy], references: [id], onDelete: Cascade)
+  publishedDocumentId String?       @unique
+  publishedDocument   Document?     @relation(fields: [publishedDocumentId], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@map("meetings")
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  toEmail   String
+  subject   String
+  template  String?
+  status    String   @default("sent")
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@map("email_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  entity    String?
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
