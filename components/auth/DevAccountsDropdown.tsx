@@ -3,14 +3,14 @@
 // Dev/local seed accounts (see docs/DATA_MODEL.md). This component renders
 // nothing in production builds, so these credentials never reach real users.
 const ACCOUNTS: { email: string; password: string; label: string }[] = [
-  { email: 'superadmin@alubonets.com', password: 'SuperAdmin@2026!', label: 'Super Admin' },
-  { email: 'admin@alubonets.com', password: 'ChangeMe123!', label: 'Admin' },
-  { email: 'executive@alubonets.com', password: 'ChangeMe123!', label: 'Executive' },
-  { email: 'treasurer@alubonets.com', password: 'ChangeMe123!', label: 'Treasurer' },
-  { email: 'secretary@alubonets.com', password: 'ChangeMe123!', label: 'Secretary' },
-  { email: 'organizer@alubonets.com', password: 'ChangeMe123!', label: 'Organizer' },
-  { email: 'member@alubonets.com', password: 'ChangeMe123!', label: 'Member' },
-  { email: 'pending@alubonets.com', password: 'ChangeMe123!', label: 'Member (pending)' },
+  { email: 'superadmin@doxacarhire.com', password: 'SuperAdmin@2026!', label: 'Super Admin' },
+  { email: 'admin@doxacarhire.com', password: 'ChangeMe123!', label: 'Admin' },
+  { email: 'manager@doxacarhire.com', password: 'ChangeMe123!', label: 'Manager' },
+  { email: 'finance@doxacarhire.com', password: 'ChangeMe123!', label: 'Finance' },
+  { email: 'dispatch@doxacarhire.com', password: 'ChangeMe123!', label: 'Dispatch' },
+  { email: 'fleet@doxacarhire.com', password: 'ChangeMe123!', label: 'Fleet' },
+  { email: 'staff@doxacarhire.com', password: 'ChangeMe123!', label: 'Staff' },
+  { email: 'pending@doxacarhire.com', password: 'ChangeMe123!', label: 'Staff (pending)' },
 ]
 
 export default function DevAccountsDropdown({

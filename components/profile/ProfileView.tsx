@@ -32,7 +32,7 @@ export default function ProfileView({ data }: { data: ProfileViewData }) {
   const [location, setLocation] = useState(data.location ?? '')
   const [avatarUrl, setAvatarUrl] = useState(data.avatarUrl ?? '')
 
-  const locationLine = data.location?.trim() || 'Alubonets SHG · Kenya'
+  const locationLine = data.location?.trim() || 'Doxa Car Hire · Nairobi, Kenya'
 
   const onSave = async (e: FormEvent) => {
     e.preventDefault()

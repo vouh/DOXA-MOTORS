@@ -19,8 +19,8 @@ type CleanupCounts = {
   oldGallery: number
 }
 
-const SEEN_KEY    = 'alubonets-notif-seen-v1'
-const CLEANUP_KEY = 'alubonets-cleanup-reminded'
+const SEEN_KEY    = 'doxa-notif-seen-v1'
+const CLEANUP_KEY = 'doxa-cleanup-reminded'
 const SEEN_TTL    = 7  * 24 * 60 * 60 * 1000  // 7 days — once dismissed, gone for a week
 const ITEM_TTL    = 48 * 60 * 60 * 1000        // 48 hrs — server only returns items this fresh
 const REMIND_TTL  = 24 * 60 * 60 * 1000        // 24 hrs — cleanup reminder cadence

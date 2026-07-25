@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       phone,
       amount,
       accountReference: userId.slice(0, 12),
-      description: 'Alubonets',
+      description: 'Doxa Car Hire',
     })
   } catch (err) {
     return NextResponse.json(

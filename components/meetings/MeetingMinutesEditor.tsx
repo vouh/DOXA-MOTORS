@@ -340,39 +340,39 @@ export default function MeetingMinutesEditor({
           <span className="material-symbols-outlined text-[14px]">preview</span>
           Letterhead preview
         </p>
-        <article className="rounded-2xl overflow-hidden shadow-[0_16px_40px_rgba(0,31,80,0.14)] bg-white border border-outline-variant/30">
+        <article className="rounded-2xl overflow-hidden shadow-[0_16px_40px_rgba(4,59,169,0.14)] bg-white border border-outline-variant/30">
           {/* Header */}
-          <div className="bg-[#001f50] px-5 py-3.5 flex items-center gap-3">
+          <div className="bg-[#043BA9] px-5 py-3.5 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={SITE_LOGO}
-              alt="Alubonets"
+              alt="Doxa Car Hire"
               width={36}
               height={36}
-              className="h-9 w-9 rounded-full object-cover flex-shrink-0 bg-[#fe8015]/20"
+              className="h-9 w-9 rounded-full object-cover flex-shrink-0 bg-[#0C5CF0]/20"
             />
             <div>
-              <p className="text-[13px] font-bold text-white leading-tight">Alubonets SHG</p>
+              <p className="text-[13px] font-bold text-white leading-tight">Doxa Car Hire</p>
               <p className="text-[10px] text-blue-200/70 leading-none mt-0.5">Meeting Minutes</p>
             </div>
           </div>
-          {/* Orange stripe */}
-          <div className="h-[3px] bg-[#fe8015]" />
+          {/* Red accent stripe */}
+          <div className="h-[3px] bg-[#E90809]" />
 
           <div className="px-5 py-4 space-y-3 min-h-[420px] text-[13px]">
             {/* Title block */}
             <div className="space-y-1">
-              <h2 className="text-[18px] font-bold text-[#001f50] leading-snug">
+              <h2 className="text-[18px] font-bold text-[#043BA9] leading-snug">
                 {values.title || <span className="text-gray-300 font-normal italic">Untitled meeting</span>}
               </h2>
               <p className="text-[12px] text-gray-500">{previewDate}</p>
-              <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded bg-[#001f50]/8 text-[11px] font-semibold text-[#001f50]">
+              <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded bg-[#043BA9]/8 text-[11px] font-semibold text-[#043BA9]">
                 <span className="material-symbols-outlined text-[12px]">person</span>
                 {values.attendance || 0} present
               </div>
             </div>
 
-            <div className="h-[2px] bg-[#fe8015]/60 rounded-full" />
+            <div className="h-[2px] bg-[#E90809]/60 rounded-full" />
 
             {/* Sections */}
             {anyContent ? (
@@ -380,8 +380,8 @@ export default function MeetingMinutesEditor({
                 (s) =>
                   s.body.trim() && (
                     <section key={s.label} className="space-y-0.5">
-                      <h3 className="text-[10px] uppercase tracking-wider font-bold text-[#001f50] flex items-center gap-1.5">
-                        <span className="inline-block w-[3px] h-[10px] rounded-sm bg-[#fe8015]" />
+                      <h3 className="text-[10px] uppercase tracking-wider font-bold text-[#043BA9] flex items-center gap-1.5">
+                        <span className="inline-block w-[3px] h-[10px] rounded-sm bg-[#E90809]" />
                         {s.label}
                       </h3>
                       <p className="text-[12px] text-gray-700 whitespace-pre-wrap leading-relaxed pl-[9px]">

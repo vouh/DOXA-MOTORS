@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { getPublicEvents } from '@/lib/data/queries'
 
 export const metadata: Metadata = {
-  title: 'Events — Alubonets SHG',
-  description: 'Upcoming and past events organised by Alubonets Self-Help Group.',
+  title: 'Events — Doxa Car Hire',
+  description: 'Upcoming and past events organised by Doxa Tours & Car Hire.',
 }
 
 type EventRow = {

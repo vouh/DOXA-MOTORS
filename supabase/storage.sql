@@ -1,4 +1,4 @@
--- Storage buckets + policies for Alubonets
+-- Storage buckets + policies for Doxa Car Hire
 -- Run in Supabase SQL Editor after policies.sql
 --
 -- Supabase may warn about "destructive operations" because of DROP POLICY IF EXISTS.

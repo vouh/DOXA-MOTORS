@@ -11,7 +11,7 @@ import type { Role } from '@/lib/auth/types'
 import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Announcements — Alubonets' }
+export const metadata = { title: 'Announcements — Doxa Car Hire' }
 
 export default async function AnnouncementsPage() {
   const profile = await getSessionProfile()

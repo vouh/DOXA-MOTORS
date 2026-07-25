@@ -20,8 +20,8 @@ export default function Navbar() {
       <header className="bg-surface dark:bg-surface-dim sticky top-0 w-full border-b border-outline-variant z-50">
         <div className="flex justify-between items-center h-20 px-md md:px-lg max-w-container-max mx-auto">
           <Link href="/" className="flex items-center gap-sm">
-            <img src={SITE_LOGO} alt="Alubonets SHG Logo" className="h-16 w-auto object-cover" />
-            <span className="font-h3 text-h3 text-primary">Alubonets</span>
+            <img src={SITE_LOGO} alt="Doxa Car Hire Logo" className="h-16 w-auto object-cover" />
+            <span className="font-h3 text-h3 text-primary">Doxa</span>
           </Link>
 
           <nav className="hidden md:flex gap-lg h-full items-center">

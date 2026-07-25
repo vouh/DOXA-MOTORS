@@ -93,7 +93,7 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
       <div className="w-full max-w-[420px]">
         <div className="flex justify-center">
           <div className="mb-[-30px] relative z-10 bg-surface rounded-2xl px-md py-sm shadow-xl border border-outline-variant/30">
-            <img src={ADMIN_LOGIN_LOGO} alt="Alubonets SHG" className="h-12 w-auto object-contain" />
+            <img src={ADMIN_LOGIN_LOGO} alt="Doxa Car Hire" className="h-12 w-auto object-contain" />
           </div>
         </div>
         <div className="bg-surface rounded-2xl pt-[52px] pb-lg px-lg shadow-2xl border border-white/10">

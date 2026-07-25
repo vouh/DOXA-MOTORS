@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { Resend } from 'resend'
 
-const INBOX = 'infoalubonets@gmail.com'
+const INBOX = 'info@doxacarhire.com'
 
 export async function sendContactMessage(formData: FormData) {
   const name     = (formData.get('name')     as string)?.trim()
@@ -17,7 +17,7 @@ export async function sendContactMessage(formData: FormData) {
   const key = process.env.RESEND_API_KEY
   if (key && !key.startsWith('re_your-')) {
     const resend = new Resend(key)
-    const from = process.env.FROM_EMAIL || 'noreply@alubonets.com'
+    const from = process.env.FROM_EMAIL || 'noreply@doxacarhire.com'
     await resend.emails.send({
       from,
       to: INBOX,

@@ -10,9 +10,9 @@ const PAGE_W = 595
 const PAGE_H = 842
 const MX     = 50          // horizontal margin
 const MB     = 60          // bottom margin
-const NAVY   = rgb(0,     0.122, 0.314)   // #001f50
-const BRIGHT = rgb(0.996, 0.502, 0.082)   // #fe8015
-const ORANGE = rgb(0.592, 0.282, 0)       // #974800
+const NAVY   = rgb(0.016, 0.231, 0.663)   // #043BA9
+const BRIGHT = rgb(0.914, 0.031, 0.035)   // #E90809
+const ORANGE = rgb(0.047, 0.361, 0.941)   // #0C5CF0
 const WHITE  = rgb(1, 1, 1)
 const DARK   = rgb(0.08, 0.08, 0.1)
 const MUTED  = rgb(0.38, 0.40, 0.44)
@@ -57,7 +57,7 @@ function addPage(ctx: Ctx) {
   ctx.page = ctx.pdf.addPage([PAGE_W, PAGE_H])
   // Repeat mini header on continuation pages
   ctx.page.drawRectangle({ x: 0, y: PAGE_H - 28, width: PAGE_W, height: 28, color: NAVY })
-  ctx.page.drawText('ALUBONETS SHG — MEETING MINUTES (cont.)', {
+  ctx.page.drawText('DOXA CAR HIRE — MEETING MINUTES (cont.)', {
     x: MX, y: PAGE_H - 18, size: 8, font: ctx.bold, color: WHITE,
   })
   ctx.page.drawRectangle({ x: 0, y: PAGE_H - 31, width: PAGE_W, height: 3, color: BRIGHT })
@@ -120,11 +120,11 @@ export async function buildMeetingMinutesPdf(meeting: MeetingForPdf): Promise<Ui
     const dims = logo.scaleToFit(34, 34)
     ctx.page.drawImage(logo, { x: MX, y: PAGE_H - 52, width: dims.width, height: dims.height })
   } else {
-    ctx.page.drawEllipse({ x: MX + 16, y: PAGE_H - 35, xScale: 15, yScale: 15, color: BRIGHT })
-    ctx.page.drawText('A', { x: MX + 11, y: PAGE_H - 41, size: 15, font: bold, color: WHITE })
+    ctx.page.drawEllipse({ x: MX + 16, y: PAGE_H - 35, xScale: 15, yScale: 15, color: ORANGE })
+    ctx.page.drawText('D', { x: MX + 11, y: PAGE_H - 41, size: 15, font: bold, color: WHITE })
   }
 
-  ctx.page.drawText('Alubonets SHG', { x: MX + 42, y: PAGE_H - 30, size: 14, font: bold, color: WHITE })
+  ctx.page.drawText('Doxa Car Hire', { x: MX + 42, y: PAGE_H - 30, size: 14, font: bold, color: WHITE })
   ctx.page.drawText('Meeting Minutes', { x: MX + 42, y: PAGE_H - 48, size: 9, font, color: rgb(0.7, 0.8, 1) })
 
   // Orange accent stripe
@@ -219,7 +219,7 @@ export async function buildMeetingMinutesPdf(meeting: MeetingForPdf): Promise<Ui
     pg.drawText(`Page ${i + 1} of ${pages.length}`, {
       x: PAGE_W - MX - 60, y: 28, size: 8, font, color: MUTED,
     })
-    pg.drawText('Alubonets Self-Help Group', { x: MX, y: 28, size: 8, font, color: MUTED })
+    pg.drawText('Doxa Tours & Car Hire', { x: MX, y: 28, size: 8, font, color: MUTED })
   })
 
   return pdf.save()

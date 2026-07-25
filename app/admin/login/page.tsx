@@ -4,7 +4,7 @@ import LoginForm from '@/components/auth/LoginForm'
 
 export const metadata: Metadata = {
   title: {
-    absolute: 'Admin Login — Alubonets SHG',
+    absolute: 'Admin Login — Doxa Car Hire',
   },
 }
 

@@ -8,7 +8,7 @@ type Props = { params: Promise<{ id: string }> }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const project = await getPublicProject(id)
-  return { title: project ? `${project.title} — Alubonets` : 'Project' }
+  return { title: project ? `${project.title} — Doxa` : 'Project' }
 }
 
 const STATUS_STYLES: Record<string, { label: string; classes: string; icon: string }> = {

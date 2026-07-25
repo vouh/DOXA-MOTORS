@@ -39,7 +39,7 @@ function loadEnvLocal() {
 
 loadEnvLocal()
 
-const SUPER_ADMIN_EMAIL = 'superadmin@alubonets.com'
+const SUPER_ADMIN_EMAIL = 'superadmin@doxacarhire.com'
 const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2026!'
 const defaultPassword = process.env.SEED_AUTH_PASSWORD || 'ChangeMe123!'
 

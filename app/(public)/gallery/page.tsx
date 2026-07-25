@@ -3,7 +3,7 @@ import { getPublicGallery } from '@/lib/data/queries'
 import GalleryClient from '@/components/public/GalleryClient'
 
 export const metadata: Metadata = {
-  title: 'Gallery — Alubonets SHG',
+  title: 'Gallery — Doxa Car Hire',
 }
 
 export default async function GalleryPage() {

@@ -24,9 +24,9 @@ function fmtDate(d: Date) {
 
 function sectionHeading(text: string): Paragraph {
   return new Paragraph({
-    children: [new TextRun({ text, bold: true, size: 20, color: '001f50', allCaps: true })],
+    children: [new TextRun({ text, bold: true, size: 20, color: '043BA9', allCaps: true })],
     spacing: { before: 200, after: 80 },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'fe8015', space: 4 } },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'E90809', space: 4 } },
   })
 }
 
@@ -49,7 +49,7 @@ function labelValue(label: string, value: string | null | undefined): Paragraph[
   return [
     new Paragraph({
       children: [
-        new TextRun({ text: `${label}: `, bold: true, size: 20, color: '001f50' }),
+        new TextRun({ text: `${label}: `, bold: true, size: 20, color: '043BA9' }),
         new TextRun({ text: value.trim(), size: 20, color: '444444' }),
       ],
       spacing: { after: 60 },
@@ -74,9 +74,9 @@ function meetingSection(m: {
   const children: Paragraph[] = [
     // Meeting title
     new Paragraph({
-      children: [new TextRun({ text: m.title, bold: true, size: 32, color: '001f50' })],
+      children: [new TextRun({ text: m.title, bold: true, size: 32, color: '043BA9' })],
       spacing: { after: 80 },
-      border: { bottom: { style: BorderStyle.THICK, size: 8, color: 'fe8015', space: 4 } },
+      border: { bottom: { style: BorderStyle.THICK, size: 8, color: 'E90809', space: 4 } },
     }),
     // Status + date row
     new Paragraph({
@@ -94,7 +94,7 @@ function meetingSection(m: {
     // Attendance summary
     new Paragraph({
       children: [
-        new TextRun({ text: 'Total present: ', bold: true, size: 18, color: '001f50' }),
+        new TextRun({ text: 'Total present: ', bold: true, size: 18, color: '043BA9' }),
         new TextRun({ text: String(m.attendance), size: 18, bold: true, color: '333333' }),
       ],
       spacing: { after: 160 },
@@ -152,7 +152,7 @@ export async function GET() {
     children: [
       new Paragraph({
         children: [
-          new TextRun({ text: 'ALUBONETS SHG', bold: true, size: 52, color: '001f50' }),
+          new TextRun({ text: 'DOXA CAR HIRE', bold: true, size: 52, color: '043BA9' }),
         ],
         alignment: AlignmentType.CENTER,
         spacing: { after: 120 },
@@ -195,7 +195,7 @@ export async function GET() {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': 'attachment; filename="alubonets-meetings.docx"',
+      'Content-Disposition': 'attachment; filename="doxa-meetings.docx"',
     },
   })
 }

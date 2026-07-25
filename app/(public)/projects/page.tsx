@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getPublicProjects } from '@/lib/data/queries'
 
-export const metadata: Metadata = { title: 'Projects — Alubonets SHG' }
+export const metadata: Metadata = { title: 'Projects — Doxa Car Hire' }
 
 const STATUS_STYLES: Record<string, string> = {
   ONGOING:   'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',

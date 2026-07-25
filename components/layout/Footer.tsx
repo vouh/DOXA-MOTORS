@@ -17,8 +17,8 @@ export default function Footer() {
       <div className="max-w-container-max mx-auto px-md md:px-lg py-lg md:py-xxl">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg mb-xl">
           <div className="col-span-1">
-            <img src={SITE_LOGO} alt="Alubonets SHG Logo" className="h-16 w-auto object-contain mb-md" />
-            <p className="footer-brand-name">Alubonets</p>
+            <img src={SITE_LOGO} alt="Doxa Car Hire Logo" className="h-16 w-auto object-contain mb-md" />
+            <p className="footer-brand-name">Doxa Car Hire</p>
             <p className="text-on-primary/80 dark:text-on-primary-container/80 text-sm mt-md">
               Butere, Kakamega County, Kenya.
             </p>
@@ -83,7 +83,7 @@ export default function Footer() {
         <div className="pt-lg">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-md text-sm">
             <p className="text-on-primary/60 dark:text-on-primary-container/60">
-              © 2026 Alubonets Self-Help Group. All rights reserved.
+              © 2026 Doxa Tours & Car Hire. All rights reserved.
             </p>
             <div className="flex gap-lg text-on-primary/60 dark:text-on-primary-container/60">
               <a

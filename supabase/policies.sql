@@ -1,4 +1,4 @@
--- Alubonets RLS policies
+-- Doxa Car Hire RLS policies
 -- Prisma columns are camelCase (quoted). Apply in Supabase SQL Editor after schema push.
 -- Service role / Prisma bypasses RLS.
 -- Prefer JWT app_metadata claims; fall back to users table via auth.uid().

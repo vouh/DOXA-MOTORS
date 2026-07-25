@@ -186,12 +186,12 @@ export default function DashboardShell({ role, title, nav, children }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={ADMIN_SIDEBAR_LOGO}
-            alt="Alubonets"
+            alt="Doxa Car Hire"
             className="h-11 w-11 rounded-full bg-white/10 p-1 flex-shrink-0"
           />
           {!collapsed && (
             <div>
-              <p className="font-h3 text-[19px] font-bold text-on-primary leading-none">Alubonets</p>
+              <p className="font-h3 text-[19px] font-bold text-on-primary leading-none">Doxa</p>
               <p className="text-[11px] text-primary-fixed-dim/60 mt-0.5 font-caption">
                 {ROLE_LABEL[role]}
               </p>

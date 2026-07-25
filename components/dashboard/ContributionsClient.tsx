@@ -100,7 +100,7 @@ export default function ContributionsClient({
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const blob = await res.blob()
       const href = URL.createObjectURL(blob)
-      const a    = Object.assign(document.createElement('a'), { href, download: 'alubonets-statement.pdf' })
+      const a    = Object.assign(document.createElement('a'), { href, download: 'doxa-statement.pdf' })
       a.click()
       setTimeout(() => URL.revokeObjectURL(href), 1500)
     } catch (err) {

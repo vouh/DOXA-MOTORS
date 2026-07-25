@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: {
-    absolute: 'Admin Dashboard — Alubonets SHG',
+    absolute: 'Admin Dashboard — Doxa Car Hire',
   },
 }
 

@@ -3,7 +3,7 @@ import { PrismaClient, PaymentMethod, ProjectStatus, Role, MemberStatus, Welfare
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('Seeding Alubonets database...')
+  console.log('Seeding Doxa Car Hire database...')
 
   await prisma.auditLog.deleteMany()
   await prisma.emailLog.deleteMany()
@@ -19,7 +19,7 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      email: 'superadmin@alubonets.com',
+      email: 'superadmin@doxacarhire.com',
       fullName: 'Super Administrator',
       phone: '+254700000001',
       role: Role.ADMIN,
@@ -36,10 +36,9 @@ async function main() {
     },
   })
 
-  // Optional secondary admin (same powers except Super) — delete later if unused
   await prisma.user.create({
     data: {
-      email: 'admin@alubonets.com',
+      email: 'admin@doxacarhire.com',
       fullName: 'System Administrator',
       phone: '+254700000002',
       role: Role.ADMIN,
@@ -51,8 +50,8 @@ async function main() {
 
   const executive = await prisma.user.create({
     data: {
-      email: 'executive@alubonets.com',
-      fullName: 'Executive Chair',
+      email: 'manager@doxacarhire.com',
+      fullName: 'Operations Manager',
       role: Role.EXECUTIVE,
       status: MemberStatus.ACTIVE,
     },
@@ -60,8 +59,8 @@ async function main() {
 
   const treasurer = await prisma.user.create({
     data: {
-      email: 'treasurer@alubonets.com',
-      fullName: 'Group Treasurer',
+      email: 'finance@doxacarhire.com',
+      fullName: 'Finance Officer',
       role: Role.TREASURER,
       status: MemberStatus.ACTIVE,
     },
@@ -69,8 +68,8 @@ async function main() {
 
   const secretary = await prisma.user.create({
     data: {
-      email: 'secretary@alubonets.com',
-      fullName: 'Group Secretary',
+      email: 'dispatch@doxacarhire.com',
+      fullName: 'Dispatch Officer',
       role: Role.SECRETARY,
       status: MemberStatus.ACTIVE,
     },
@@ -78,8 +77,8 @@ async function main() {
 
   const organizer = await prisma.user.create({
     data: {
-      email: 'organizer@alubonets.com',
-      fullName: 'Events Organizer',
+      email: 'fleet@doxacarhire.com',
+      fullName: 'Fleet Manager',
       role: Role.ORGANIZER,
       status: MemberStatus.ACTIVE,
     },
@@ -87,17 +86,17 @@ async function main() {
 
   const member = await prisma.user.create({
     data: {
-      email: 'member@alubonets.com',
-      fullName: 'Jane Member',
+      email: 'staff@doxacarhire.com',
+      fullName: 'Jane Staff',
       phone: '+254700000099',
       role: Role.MEMBER,
       status: MemberStatus.ACTIVE,
     },
   })
 
-  const pending = await prisma.user.create({
+  await prisma.user.create({
     data: {
-      email: 'pending@alubonets.com',
+      email: 'pending@doxacarhire.com',
       fullName: 'Pending Applicant',
       role: Role.MEMBER,
       status: MemberStatus.PENDING,
@@ -110,9 +109,9 @@ async function main() {
     await prisma.contribution.create({
       data: {
         userId: u.id,
-        amount: 1000 + i * 250,
-        description: 'Monthly contribution',
-        category: 'Monthly',
+        amount: 5000 + i * 1000,
+        description: 'Booking payment',
+        category: 'Hire',
         paymentMethod: i % 2 === 0 ? PaymentMethod.MPESA : PaymentMethod.CASH,
         receivedBy: treasurer.fullName,
         mpesaRef: i % 2 === 0 ? `MPESA-${1000 + i}` : null,
@@ -124,8 +123,8 @@ async function main() {
   await prisma.welfareRequest.create({
     data: {
       userId: member.id,
-      description: 'Medical support for family member',
-      amount: 15000,
+      description: 'Vehicle maintenance reimbursement request',
+      amount: 8000,
       status: WelfareStatus.PENDING,
     },
   })
@@ -133,20 +132,20 @@ async function main() {
   await prisma.project.createMany({
     data: [
       {
-        title: 'Community Borehole',
-        description: 'Water access improvement for Alubokho families.',
+        title: 'Fleet Expansion Phase 1',
+        description: 'Adding 5 new vehicles to the hire fleet.',
         status: ProjectStatus.ONGOING,
         startDate: new Date('2026-01-15'),
       },
       {
-        title: 'Youth Skills Workshop',
-        description: 'Training program for members under 35.',
+        title: 'GPS Tracking Installation',
+        description: 'Installing trackers across all vehicles.',
         status: ProjectStatus.UPCOMING,
         startDate: new Date('2026-08-01'),
       },
       {
-        title: 'School Fees Support 2025',
-        description: 'Completed bursary cycle.',
+        title: 'Sound System Upgrade 2025',
+        description: 'Completed sound system installations.',
         status: ProjectStatus.COMPLETED,
         startDate: new Date('2025-01-01'),
         endDate: new Date('2025-12-31'),
@@ -156,8 +155,8 @@ async function main() {
 
   await prisma.announcement.create({
     data: {
-      title: 'Welcome to the Alubonets platform',
-      content: 'Members can now track contributions, welfare, and events online.',
+      title: 'Welcome to Doxa Car Hire',
+      content: 'Staff can now manage bookings, fleet, and client records online.',
       authorId: secretary.id,
     },
   })
@@ -165,15 +164,15 @@ async function main() {
   await prisma.event.createMany({
     data: [
       {
-        title: 'Quarterly General Meeting',
-        description: 'Review of finances and projects',
-        location: 'Alubokho Community Hall',
+        title: 'Monthly Fleet Inspection',
+        description: 'Routine check of all vehicles in the fleet.',
+        location: 'Doxa Car Hire Yard, Nairobi',
         startsAt: new Date(Date.now() + 14 * 86400000),
       },
       {
-        title: 'Family Day',
-        description: 'Sports and fellowship',
-        location: 'School grounds',
+        title: 'Staff Training Day',
+        description: 'Customer service and booking system training.',
+        location: 'Head Office',
         startsAt: new Date(Date.now() + 45 * 86400000),
       },
     ],
@@ -182,17 +181,17 @@ async function main() {
   await prisma.galleryPhoto.createMany({
     data: [
       {
-        url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800',
-        caption: 'Family gathering 2025',
-        category: 'Events',
+        url: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800',
+        caption: 'Fleet display 2026',
+        category: 'Fleet',
         isPublic: true,
         approvedAt: new Date(),
         uploadedBy: organizer.id,
       },
       {
-        url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800',
-        caption: 'Pending approval upload',
-        category: 'Projects',
+        url: 'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800',
+        caption: 'Pending approval',
+        category: 'Fleet',
         isPublic: false,
         uploadedBy: organizer.id,
       },
@@ -201,25 +200,24 @@ async function main() {
 
   await prisma.document.create({
     data: {
-      title: 'Constitution (summary)',
-      fileUrl: '/documents/constitution-summary.pdf',
-      category: 'Governance',
+      title: 'Hire Terms & Conditions',
+      fileUrl: '/documents/hire-terms.pdf',
+      category: 'Legal',
       uploadedBy: secretary.id,
     },
   })
 
   await prisma.meeting.create({
     data: {
-      title: 'January Executive Meeting',
-      agenda: 'Budget review, welfare backlog, upcoming events',
-      opening: 'The Chair called the meeting to order at 10:00.',
-      minutes:
-        'Budget for Q1 approved. Two welfare cases escalated to the treasurer for review.',
-      attendees: 'Executive Chair, Treasurer, Secretary, Organizer, and 8 members',
+      title: 'January Operations Review',
+      agenda: 'Fleet status, booking targets, finance review',
+      opening: 'The Manager opened the meeting at 09:00.',
+      minutes: 'Fleet utilisation at 78%. Two vehicles scheduled for maintenance.',
+      attendees: 'Manager, Finance Officer, Dispatch Officer, Fleet Manager',
       nextMeetingAt: new Date('2026-02-17'),
       status: 'FINAL',
       heldAt: new Date('2026-01-20'),
-      attendance: 12,
+      attendance: 6,
       recordedBy: secretary.id,
     },
   })
@@ -227,12 +225,12 @@ async function main() {
   await prisma.meeting.create({
     data: {
       title: 'February Planning Draft',
-      agenda: 'Events calendar, gallery drive',
+      agenda: 'Corporate client outreach, tour packages',
       opening: 'Draft notes — not yet finalized.',
-      minutes: 'Organizer to propose three community events.',
+      minutes: 'Fleet manager to assess 3 new vehicles for acquisition.',
       status: 'DRAFT',
       heldAt: new Date('2026-02-10'),
-      attendance: 6,
+      attendance: 4,
       recordedBy: secretary.id,
     },
   })
@@ -242,16 +240,19 @@ async function main() {
       userId: admin.id,
       action: 'SEED',
       entity: 'database',
-      meta: { pendingUserId: pending.id },
+      meta: {},
     },
   })
 
   console.log('Seed complete.')
-  console.log('Profile emails (Auth via npm run db:bootstrap-auth):')
-  console.log('- superadmin@alubonets.com (ADMIN / super)')
-  console.log('- admin@alubonets.com (ADMIN)')
-  console.log('- member@alubonets.com (MEMBER)')
-  console.log('- pending@alubonets.com (PENDING)')
+  console.log('Login accounts (Auth via npm run db:bootstrap-auth):')
+  console.log('- superadmin@doxacarhire.com (ADMIN / super)')
+  console.log('- admin@doxacarhire.com (ADMIN)')
+  console.log('- manager@doxacarhire.com (EXECUTIVE / Manager)')
+  console.log('- finance@doxacarhire.com (TREASURER / Finance)')
+  console.log('- dispatch@doxacarhire.com (SECRETARY / Dispatch)')
+  console.log('- fleet@doxacarhire.com (ORGANIZER / Fleet)')
+  console.log('- staff@doxacarhire.com (MEMBER / Staff)')
 }
 
 main()

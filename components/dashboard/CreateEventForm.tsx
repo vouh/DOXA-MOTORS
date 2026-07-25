@@ -14,7 +14,7 @@ function toDateTimeLocal(isoStr: string): string {
 
 const MAX_PX   = 1024
 const MAX_BYTES = 2 * 1024 * 1024
-const DRAFT_KEY = 'alubonets-event-draft'
+const DRAFT_KEY = 'doxa-event-draft'
 
 // ── image compression ────────────────────────────────────────────────────────
 

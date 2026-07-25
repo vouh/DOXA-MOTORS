@@ -21,12 +21,12 @@ export async function actionInitiateStkPush(data: {
 
   const callbackUrl =
     process.env.MPESA_CALLBACK_URL ??
-    `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/api/mpesa/callback`
+    `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3002'}/api/mpesa/callback`
 
   const result = await initiateStkPush({
     phone: data.phone,
     amount,
-    accountRef: 'ALUBONETS',
+    accountRef: 'DOXACARHIRE',
     description: (data.category || 'Contribution').slice(0, 13),
     callbackUrl,
   })

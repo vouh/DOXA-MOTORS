@@ -7,9 +7,9 @@ import { SITE_LOGO } from '@/lib/constants'
 // Module-level logo cache so warm lambda instances skip the network entirely
 let _logoCache: { buf: ArrayBuffer; ct: string } | null = null
 
-const BLUE   = rgb(0,     0.122, 0.314)   // #001f50
-const BRIGHT = rgb(0.996, 0.502, 0.082)   // #fe8015
-const ORANGE = rgb(0.592, 0.282, 0)       // #974800 — amounts on white
+const BLUE   = rgb(0.016, 0.231, 0.663)   // #043BA9
+const BRIGHT = rgb(0.914, 0.031, 0.035)   // #E90809
+const ORANGE = rgb(0.047, 0.361, 0.941)   // #0C5CF0 — amounts on white
 const WHITE  = rgb(1, 1, 1)
 const GREY   = rgb(0.4,  0.4,  0.4)
 const PAGE_W = 595
@@ -88,11 +88,11 @@ export async function GET(
       const dims = logo.scaleToFit(34, 34)
       pg.drawImage(logo, { x: 50, y: PAGE_H - 52, width: dims.width, height: dims.height })
     } else {
-      pg.drawEllipse({ x: 66, y: PAGE_H - 35, xScale: 15, yScale: 15, color: BRIGHT })
-      pg.drawText('A', { x: 61, y: PAGE_H - 41, size: 15, font: bold, color: WHITE })
+      pg.drawEllipse({ x: 66, y: PAGE_H - 35, xScale: 15, yScale: 15, color: ORANGE })
+      pg.drawText('D', { x: 61, y: PAGE_H - 41, size: 15, font: bold, color: WHITE })
     }
 
-    pg.drawText('Alubonets SHG', { x: 92, y: PAGE_H - 30, size: 14, font: bold, color: WHITE })
+    pg.drawText('Doxa Car Hire', { x: 92, y: PAGE_H - 30, size: 14, font: bold, color: WHITE })
     pg.drawText('Member Contribution Statement', { x: 92, y: PAGE_H - 48, size: 9, font, color: rgb(0.7, 0.8, 1) })
     // Orange accent stripe
     pg.drawRectangle({ x: 0, y: PAGE_H - 73, width: PAGE_W, height: 3, color: BRIGHT })

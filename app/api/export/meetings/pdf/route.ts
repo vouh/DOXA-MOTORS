@@ -34,7 +34,7 @@ export async function GET() {
   return new NextResponse(Buffer.from(output), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="alubonets-meetings-${date}.pdf"`,
+      'Content-Disposition': `attachment; filename="doxa-meetings-${date}.pdf"`,
     },
   })
 }

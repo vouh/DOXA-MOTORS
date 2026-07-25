@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const cookieStore = await cookies()
   const supabase = createClient(cookieStore)
   const { data } = await supabase.from('events').select('title').eq('id', id).eq('isPublic', true).single()
-  return { title: data ? `${data.title} — Alubonets` : 'Event' }
+  return { title: data ? `${data.title} — Doxa` : 'Event' }
 }
 
 export default async function EventDetailPage({ params }: Props) {
@@ -153,7 +153,7 @@ export default async function EventDetailPage({ params }: Props) {
               <span className="material-symbols-outlined text-outline" style={{ fontSize: 22 }}>group</span>
               <div>
                 <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Organised by</p>
-                <p className="text-[14px] font-semibold text-on-surface">Alubonets SHG</p>
+                <p className="text-[14px] font-semibold text-on-surface">Doxa Car Hire</p>
               </div>
             </div>
 
