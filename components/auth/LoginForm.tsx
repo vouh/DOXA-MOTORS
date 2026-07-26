@@ -238,16 +238,6 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
                     ? 'Register'
                     : 'Sign In'}
               </button>
-              {admin && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/admin')}
-                  className="w-full flex items-center justify-center gap-2 py-[11px] px-xl rounded-full border-2 border-primary text-primary font-label-bold text-label-bold hover:bg-primary/10 active:scale-95 transition-all min-h-[44px]"
-                >
-                  <span className="material-symbols-outlined text-[17px]">bolt</span>
-                  Demo Admin Access
-                </button>
-              )}
             </div>
           </form>
 
