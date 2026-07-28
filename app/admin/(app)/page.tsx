@@ -1,103 +1,41 @@
-'use client'
+import { prisma } from '@/lib/prisma'
+import { Card, StatusPill, Th } from '@/components/admin/ui'
 
-import { useRouter } from 'next/navigation'
-import { demoBookings } from '@/lib/admin/data'
-import { Card, Th, StatusPill } from '@/components/admin/ui'
+export const dynamic = 'force-dynamic'
 
-export default function DashboardPage() {
-  const router = useRouter()
-
-  const kpis = [
-    { label: 'Total Clients',   value: '5',       icon: 'people',                 bg: 'bg-primary',             href: '/admin/clients'       },
-    { label: 'Fleet Size',      value: '6',       icon: 'directions_car',         bg: 'bg-primary-container',   href: '/admin/vehicles'      },
-    { label: 'Active Bookings', value: '3',       icon: 'assignment',             bg: 'bg-tertiary',            href: '/admin/bookings'      },
-    { label: 'Revenue (KES)',   value: '100,600', icon: 'account_balance_wallet', bg: 'bg-secondary-container', href: '/admin/finance'       },
+export default async function DashboardPage() {
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000)
+  const expiryLimit = new Date(now.getTime() + 7 * 86_400_000)
+  const [vehicles, bookings, todayMoney, monthMoney, expiring] = await Promise.all([
+    prisma.carVehicle.findMany(),
+    prisma.carBooking.findMany({
+      where: { status: { in: ['RESERVED','DISPATCHED','OVERDUE'] } },
+      include: { client: true, vehicle: true, payments: { where: { status: 'COMPLETED' } } },
+      orderBy: { expectedReturnAt: 'asc' },
+    }),
+    prisma.carPayment.aggregate({ where: { status: 'COMPLETED', paidAt: { gte: dayStart } }, _sum: { amount: true } }),
+    prisma.carPayment.aggregate({ where: { status: 'COMPLETED', paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+    prisma.vehicleDocument.findMany({ where: { expiryDate: { lte: expiryLimit } }, include: { vehicle: true }, orderBy: { expiryDate: 'asc' } }),
+  ])
+  const owed = bookings.reduce((sum, b) => sum + Math.max(0, b.totalCharge - b.payments.reduce((p,x)=>p+x.amount,0)),0)
+  const stats = [
+    ['Cars out', vehicles.filter(v=>v.status==='HIRED').length, 'directions_car'],
+    ['Parked / idle', vehicles.filter(v=>v.status==='AVAILABLE').length, 'garage'],
+    ['Due back today', bookings.filter(b=>b.expectedReturnAt>=dayStart&&b.expectedReturnAt<dayEnd).length, 'event'],
+    ['Overdue', bookings.filter(b=>b.status==='OVERDUE'||(b.status==='DISPATCHED'&&b.expectedReturnAt<now)).length, 'warning'],
+    ['Collected today', `KES ${(todayMoney._sum.amount??0).toLocaleString()}`, 'payments'],
+    ['Collected month', `KES ${(monthMoney._sum.amount??0).toLocaleString()}`, 'account_balance'],
+    ['Outstanding', `KES ${owed.toLocaleString()}`, 'receipt_long'],
+    ['Expiring documents', expiring.length, 'contract'],
   ]
-
-  return (
-    <div className="space-y-5">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <button
-            key={k.label}
-            onClick={() => router.push(k.href)}
-            className={`text-left rounded-xl p-4 text-white shadow-card hover:opacity-90 active:scale-[.98] transition-all ${k.bg}`}
-          >
-            <span className="material-symbols-outlined icon-fill text-[22px] opacity-70">{k.icon}</span>
-            <p className="mt-2 font-number text-[26px] font-bold leading-none">{k.value}</p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest opacity-60">{k.label}</p>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-5">
-        {/* Fleet status */}
-        <Card className="p-5">
-          <p className="text-[11px] font-semibold text-on-surface-variant dark:text-blue-200/50 uppercase tracking-wider mb-4">Fleet Status</p>
-          {[
-            { label: 'Hired',       count: 3, total: 6, color: 'bg-green-500' },
-            { label: 'Parked',      count: 2, total: 6, color: 'bg-outline' },
-            { label: 'Maintenance', count: 1, total: 6, color: 'bg-secondary-container' },
-          ].map((f) => (
-            <div key={f.label} className="flex items-center gap-3 mb-3 last:mb-0">
-              <span className={`h-2 w-2 rounded-full shrink-0 ${f.color}`} />
-              <span className="text-[13px] text-on-surface-variant dark:text-blue-200/60 w-24">{f.label}</span>
-              <div className="flex-1 h-1.5 bg-surface-container dark:bg-white/10 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${f.color}`} style={{ width: `${(f.count / f.total) * 100}%` }} />
-              </div>
-              <span className="text-[13px] font-semibold text-on-surface dark:text-blue-50 w-4 text-right">{f.count}</span>
-            </div>
-          ))}
-        </Card>
-
-        {/* Quick actions */}
-        <Card className="p-5">
-          <p className="text-[11px] font-semibold text-on-surface-variant dark:text-blue-200/50 uppercase tracking-wider mb-4">Quick Actions</p>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'New Booking',     icon: 'add_circle',     href: '/admin/bookings'  },
-              { label: 'Register Client', icon: 'person_add',     href: '/admin/clients'   },
-              { label: 'Add Vehicle',     icon: 'directions_car', href: '/admin/vehicles'  },
-              { label: 'Finance Report',  icon: 'bar_chart',      href: '/admin/finance'   },
-            ].map((q) => (
-              <button
-                key={q.label}
-                onClick={() => router.push(q.href)}
-                className="flex items-center gap-2 p-3 rounded-xl border border-outline-variant dark:border-[#1a2d4f] hover:border-primary/40 hover:bg-primary/5 transition-colors text-left"
-              >
-                <span className="material-symbols-outlined text-primary dark:text-blue-400 text-[18px]">{q.icon}</span>
-                <span className="text-[12px] font-medium text-on-surface dark:text-blue-100">{q.label}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Recent bookings */}
-      <Card>
-        <div className="px-4 py-3 border-b border-outline-variant dark:border-[#1a2d4f] flex items-center justify-between">
-          <p className="text-[11px] font-semibold text-on-surface-variant dark:text-blue-200/50 uppercase tracking-wider">Recent Bookings</p>
-          <button onClick={() => router.push('/admin/bookings')} className="text-[12px] text-primary dark:text-blue-400 hover:underline font-medium">View all →</button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <Th cols={['ID', 'Client', 'Vehicle', 'Period', 'Total (KES)', 'Status']} />
-            <tbody className="divide-y divide-outline-variant dark:divide-[#1a2d4f]">
-              {demoBookings.map((b) => (
-                <tr key={b.id} className="hover:bg-surface-container-low dark:hover:bg-[#0a1628]">
-                  <td className="px-4 py-3 font-mono text-primary dark:text-blue-400 font-semibold">{b.id}</td>
-                  <td className="px-4 py-3 font-medium text-on-surface dark:text-blue-50">{b.client}</td>
-                  <td className="px-4 py-3 text-on-surface-variant dark:text-blue-200/60">{b.vehicle}</td>
-                  <td className="px-4 py-3 text-on-surface-variant dark:text-blue-200/60 whitespace-nowrap">{b.from} → {b.to}</td>
-                  <td className="px-4 py-3 font-semibold text-on-surface dark:text-blue-50">{b.total.toLocaleString()}</td>
-                  <td className="px-4 py-3"><StatusPill status={b.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+  return <div className="space-y-5">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{stats.map(([label,value,icon]) => <Card className="p-4" key={String(label)}><span className="material-symbols-outlined text-primary">{icon}</span><p className="mt-2 text-2xl font-bold">{value}</p><p className="text-xs opacity-60">{label}</p></Card>)}</div>
+    <div className="grid gap-5 lg:grid-cols-3">
+      <Card className="lg:col-span-2"><div className="border-b p-4 font-semibold">Live hires & balances</div><div className="overflow-x-auto"><table className="w-full text-xs"><Th cols={['Booking','Client','Vehicle','Due','Balance','Status']} /><tbody>{bookings.map(b=>{const paid=b.payments.reduce((s,p)=>s+p.amount,0);return <tr key={b.id}><td className="p-3 font-mono">{b.reference}</td><td className="p-3">{b.client.fullName}</td><td className="p-3">{b.vehicle.regNumber}</td><td className="p-3">{b.expectedReturnAt.toLocaleString()}</td><td className="p-3 font-semibold">{Math.max(0,b.totalCharge-paid).toLocaleString()}</td><td className="p-3"><StatusPill status={b.status}/></td></tr>})}</tbody></table></div></Card>
+      <Card><div className="border-b p-4 font-semibold">Document alerts</div><div className="divide-y">{expiring.map(d=><div className="p-4 text-sm" key={d.id}><strong>{d.vehicle.regNumber}</strong><p className="text-xs opacity-60">{d.type} · {d.expiryDate.toLocaleDateString()}</p></div>)}{!expiring.length&&<p className="p-6 text-sm opacity-60">No documents expiring within 7 days.</p>}</div></Card>
     </div>
-  )
+  </div>
 }

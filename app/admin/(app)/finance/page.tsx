@@ -1,80 +1,44 @@
-'use client'
+import { prisma } from '@/lib/prisma'
+import { recordCarExpense } from '@/app/actions/car-hire'
+import { Card, SectionHead, StatusPill, Th } from '@/components/admin/ui'
 
-import { Btn, Card, SectionHead } from '@/components/admin/ui'
+export const dynamic = 'force-dynamic'
+const field = 'rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm'
 
-export default function FinancePage() {
-  const income   = { bookings: 97100, penalties: 2500, other: 1000, total: 100600 }
-  const expenses = { fuel: 5000, maintenance: 8500, commission: 4000, other: 2000, total: 19500 }
-  const net      = income.total - expenses.total
-  const margin   = Math.round((net / income.total) * 100)
-
-  return (
-    <div className="space-y-5">
-      <SectionHead
-        title="Finance & Reports"
-        action={
-          <div className="flex gap-2">
-            <Btn label="Export CSV"   icon="table_view" />
-            <Btn label="Export Excel" icon="grid_on" variant="primary" />
-          </div>
-        }
-      />
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="material-symbols-outlined text-green-600 dark:text-green-400">trending_up</span>
-            <p className="font-semibold text-on-surface-variant dark:text-blue-200/60 text-[13px]">Total Income</p>
-          </div>
-          <p className="font-number text-[28px] font-bold text-green-700 dark:text-green-400">KES {income.total.toLocaleString()}</p>
-          <div className="mt-3 space-y-1.5 border-t border-outline-variant dark:border-[#1a2d4f] pt-3">
-            {[['Bookings', income.bookings], ['Penalties', income.penalties], ['Other', income.other]].map(([l, v]) => (
-              <div key={String(l)} className="flex justify-between text-[12px] text-on-surface-variant dark:text-blue-200/50">
-                <span>{l}</span><span className="font-medium">KES {Number(v).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="material-symbols-outlined text-secondary-container dark:text-red-400">trending_down</span>
-            <p className="font-semibold text-on-surface-variant dark:text-blue-200/60 text-[13px]">Total Expenses</p>
-          </div>
-          <p className="font-number text-[28px] font-bold text-secondary-container dark:text-red-400">KES {expenses.total.toLocaleString()}</p>
-          <div className="mt-3 space-y-1.5 border-t border-outline-variant dark:border-[#1a2d4f] pt-3">
-            {[['Fuel', expenses.fuel], ['Maintenance', expenses.maintenance], ['Commission', expenses.commission], ['Other', expenses.other]].map(([l, v]) => (
-              <div key={String(l)} className="flex justify-between text-[12px] text-on-surface-variant dark:text-blue-200/50">
-                <span>{l}</span><span className="font-medium">KES {Number(v).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <div className="rounded-xl p-5 text-white shadow-card bg-primary-container">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="material-symbols-outlined text-white/70">account_balance</span>
-            <p className="font-semibold text-white/80 text-[13px]">Net Profit</p>
-          </div>
-          <p className="font-number text-[28px] font-bold">KES {net.toLocaleString()}</p>
-          <div className="mt-4">
-            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-white rounded-full" style={{ width: `${margin}%` }} />
-            </div>
-            <p className="text-white/50 text-[11px] mt-1">{margin}% profit margin</p>
-          </div>
-        </div>
-      </div>
-
-      <Card className="p-5">
-        <p className="font-semibold text-on-surface dark:text-blue-50 text-[13px] mb-4">Record Transaction</p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Btn label="Record Income"   icon="add_circle"    variant="primary" />
-          <Btn label="Record Expense"  icon="remove_circle" variant="danger"  />
-          <Btn label="P & L Report"    icon="bar_chart"                       />
-          <Btn label="Monthly Summary" icon="calendar_month"                  />
-        </div>
-      </Card>
+export default async function FinancePage() {
+  const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  const [payments, expenses, vehicles, payouts, outstanding] = await Promise.all([
+    prisma.carPayment.findMany({ where: { status: 'COMPLETED', paidAt: { gte: start } }, include: { booking: { include: { client: true } } }, orderBy: { paidAt: 'desc' } }),
+    prisma.carExpense.findMany({ where: { incurredAt: { gte: start } }, include: { vehicle: true, owner: true }, orderBy: { incurredAt: 'desc' } }),
+    prisma.carVehicle.findMany({ include: { owner: true }, orderBy: { regNumber: 'asc' } }),
+    prisma.ownerPayout.findMany({ include: { owner: true }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    prisma.carBooking.findMany({ where: { status: { not: 'CANCELLED' } }, include: { client: true, payments: { where: { status: 'COMPLETED' } } } }),
+  ])
+  const income = payments.reduce((sum, payment) => sum + payment.amount, 0)
+  const expenseTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const debt = outstanding.reduce((sum, booking) => sum + Math.max(0, booking.totalCharge - booking.payments.reduce((p, payment) => p + payment.amount, 0)), 0)
+  return <div className="space-y-5">
+    <SectionHead title="Finance, Expenses & Owner Settlement" />
+    <div className="grid gap-4 md:grid-cols-4">
+      {[['Collected this month', income], ['Fleet expenses', expenseTotal], ['Net cash position', income-expenseTotal], ['Outstanding balances', debt]].map(([label, value]) =>
+        <Card className="p-4" key={String(label)}><p className="text-xs opacity-60">{label}</p><p className="mt-2 text-2xl font-bold">KES {Number(value).toLocaleString()}</p></Card>
+      )}
     </div>
-  )
+    <details className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+      <summary className="cursor-pointer font-semibold text-primary">Record vehicle expense</summary>
+      <form action={async data => { 'use server'; await recordCarExpense(data) }} className="mt-4 grid gap-3 md:grid-cols-3">
+        <select className={field} name="vehicleId" required><option value="">Vehicle *</option>{vehicles.map(v => <option value={v.id} key={v.id}>{v.regNumber} · {v.owner.fullName}</option>)}</select>
+        <input className={field} name="category" placeholder="Category *" required />
+        <input className={field} name="description" placeholder="Description *" required />
+        <input className={field} name="amount" type="number" min=".01" step=".01" placeholder="Amount *" required />
+        <input className={field} name="incurredAt" type="date" required />
+        <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white">Save expense</button>
+      </form>
+    </details>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card><div className="border-b p-4 font-semibold">Recent payments</div><div className="overflow-x-auto"><table className="w-full text-xs"><Th cols={['Client','Method','Reference','Amount']} /><tbody>{payments.slice(0,10).map(p => <tr key={p.id}><td className="p-3">{p.booking.client.fullName}</td><td className="p-3">{p.method}</td><td className="p-3">{p.mpesaRef ?? '—'}</td><td className="p-3 font-semibold">{p.amount.toLocaleString()}</td></tr>)}</tbody></table></div></Card>
+      <Card><div className="border-b p-4 font-semibold">Owner statements</div><div className="overflow-x-auto"><table className="w-full text-xs"><Th cols={['Owner','Period','Net Pay','Status']} /><tbody>{payouts.map(p => <tr key={p.id}><td className="p-3">{p.owner.fullName}</td><td className="p-3">{p.periodStart.toLocaleDateString()}–{p.periodEnd.toLocaleDateString()}</td><td className="p-3 font-semibold">{p.netPay.toLocaleString()}</td><td className="p-3"><StatusPill status={p.status}/></td></tr>)}</tbody></table></div></Card>
+    </div>
+    <a href="/api/export/car-hire?report=bookings" className="inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white">Export financial booking ledger</a>
+  </div>
 }
