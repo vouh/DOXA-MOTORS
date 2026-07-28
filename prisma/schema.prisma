@@ -49,6 +49,87 @@ enum MeetingStatus {
   FINAL
 }
 
+enum ClientStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  RESERVED
+  HIRED
+  MAINTENANCE
+  RETIRED
+}
+
+enum VehicleType {
+  SALOON
+  SUV_4X4
+  VAN_MINIBUS
+  PICKUP
+  ECONOMY
+}
+
+enum BookingStatus {
+  RESERVED
+  DISPATCHED
+  OVERDUE
+  RETURNED
+  CANCELLED
+}
+
+enum CarPaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PenaltyRateUnit {
+  HOUR
+  DAY
+}
+
+enum ConditionStage {
+  DISPATCH
+  RETURN
+}
+
+enum PayoutStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum MessageChannel {
+  SMS
+  EMAIL
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  SKIPPED
+}
+
+enum RecipientType {
+  CLIENT
+  OWNER
+  STAFF
+}
+
+enum VehicleDocumentType {
+  INSURANCE
+  INSPECTION
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+}
+
 model User {
   id              String       @id @default(cuid())
   authUserId      String?      @unique
@@ -252,4 +333,288 @@ model AuditLog {
   @@index([createdAt])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+model CarOwner {
+  id                String          @id @default(cuid())
+  fullName          String
+  phone             String
+  email             String?
+  nationalId        String          @unique
+  kraPin            String?
+  bankDetails       String?
+  mpesaNumber       String?
+  idCopyUrl         String?
+  logbookUrl        String?
+  agreementUrl      String?
+  nextOfKin         String?
+  commissionType    CommissionType  @default(PERCENTAGE)
+  commissionValue   Float           @default(0)
+  recurringDeduction Float          @default(0)
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  vehicles          CarVehicle[]
+  expenses          CarExpense[]
+  payouts           OwnerPayout[]
+
+  @@index([phone])
+  @@map("car_owners")
+}
+
+model CarVehicle {
+  id               String           @id @default(cuid())
+  ownerId          String
+  owner            CarOwner         @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  regNumber        String           @unique
+  make             String
+  model            String
+  year             Int?
+  color            String?
+  type             VehicleType
+  dailyRate        Float
+  status           VehicleStatus    @default(AVAILABLE)
+  imageUrl         String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  bookings         CarBooking[]
+  expenses         CarExpense[]
+  documents        VehicleDocument[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("car_vehicles")
+}
+
+model CarClient {
+  id               String        @id @default(cuid())
+  fullName         String
+  phone            String        @unique
+  email            String?
+  idOrPassportNo   String        @unique
+  idCopyUrl        String?
+  licenceNo        String
+  licenceCopyUrl   String?
+  licenceExpiry    DateTime?
+  physicalAddress  String?
+  nextOfKin        String?
+  employer         String?
+  secondContact    String?
+  status           ClientStatus  @default(ACTIVE)
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  bookings         CarBooking[]
+
+  @@index([fullName])
+  @@map("car_clients")
+}
+
+model PenaltyRule {
+  id            String          @id @default(cuid())
+  name          String
+  graceMinutes  Int             @default(0)
+  rate          Float
+  rateUnit      PenaltyRateUnit
+  cap           Float?
+  active        Boolean         @default(true)
+  effectiveFrom DateTime        @default(now())
+  updatedBy     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  bookings      CarBooking[]
+  penalties     CarPenalty[]
+
+  @@index([active, effectiveFrom])
+  @@map("penalty_rules")
+}
+
+model CarBooking {
+  id                    String          @id @default(cuid())
+  reference             String          @unique
+  clientId              String
+  client                CarClient       @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vehicleId             String
+  vehicle               CarVehicle      @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  penaltyRuleId         String?
+  penaltyRule           PenaltyRule?    @relation(fields: [penaltyRuleId], references: [id], onDelete: SetNull)
+  startAt               DateTime
+  expectedReturnAt      DateTime
+  actualReturnAt        DateTime?
+  dailyRate             Float
+  days                  Int
+  baseCharge            Float
+  additionalCharge      Float           @default(0)
+  penaltyAmount         Float           @default(0)
+  totalCharge           Float
+  status                BookingStatus   @default(RESERVED)
+  dispatchNotes         String?
+  returnNotes           String?
+  createdBy             String?
+  dispatchedAt          DateTime?
+  returnedAt            DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  checks                ConditionCheck[]
+  extensions            CarHireExtension[]
+  penalties             CarPenalty[]
+  payments              CarPayment[]
+
+  @@index([clientId])
+  @@index([vehicleId])
+  @@index([status, expectedReturnAt])
+  @@map("car_bookings")
+}
+
+model ConditionCheck {
+  id           String         @id @default(cuid())
+  bookingId    String
+  booking      CarBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  stage        ConditionStage
+  dentsNotes   String?
+  fuelLevel    Int?
+  odometer     Int?
+  componentsOk Boolean        @default(true)
+  photos       String[]       @default([])
+  checkedBy    String?
+  createdAt    DateTime       @default(now())
+
+  @@unique([bookingId, stage])
+  @@map("condition_checks")
+}
+
+model CarHireExtension {
+  id              String      @id @default(cuid())
+  bookingId       String
+  booking         CarBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  previousReturnAt DateTime
+  newReturnAt     DateTime
+  extraDays       Int
+  extraAmount     Float
+  createdBy       String?
+  createdAt       DateTime    @default(now())
+
+  @@index([bookingId])
+  @@map("car_hire_extensions")
+}
+
+model CarPenalty {
+  id               String      @id @default(cuid())
+  bookingId        String
+  booking          CarBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ruleId           String
+  rule              PenaltyRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  minutesLate      Int
+  amount           Float
+  calculationNotes String
+  createdAt        DateTime    @default(now())
+
+  @@index([bookingId])
+  @@map("car_penalties")
+}
+
+model CarPayment {
+  id             String           @id @default(cuid())
+  bookingId      String
+  booking        CarBooking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  amount         Float
+  method         PaymentMethod
+  status         CarPaymentStatus @default(COMPLETED)
+  mpesaRef       String?          @unique
+  checkoutId     String?          @unique
+  phone          String?
+  receivedBy     String?
+  paidAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([bookingId, status])
+  @@index([paidAt])
+  @@map("car_payments")
+}
+
+model CarExpense {
+  id          String      @id @default(cuid())
+  vehicleId   String
+  vehicle     CarVehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  ownerId     String
+  owner       CarOwner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  description String
+  category    String
+  amount      Float
+  incurredAt  DateTime
+  recordedBy  String?
+  createdAt   DateTime    @default(now())
+
+  @@index([ownerId, incurredAt])
+  @@index([vehicleId, incurredAt])
+  @@map("car_expenses")
+}
+
+model OwnerPayout {
+  id            String       @id @default(cuid())
+  ownerId       String
+  owner         CarOwner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  periodStart   DateTime
+  periodEnd     DateTime
+  grossEarnings Float
+  commission    Float
+  totalExpenses Float
+  deductions    Float
+  netPay        Float
+  status        PayoutStatus @default(DRAFT)
+  paymentRef    String?
+  paidAt        DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([ownerId, periodStart, periodEnd])
+  @@index([status])
+  @@map("owner_payouts")
+}
+
+model VehicleDocument {
+  id          String              @id @default(cuid())
+  vehicleId   String
+  vehicle     CarVehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type        VehicleDocumentType
+  fileUrl     String?
+  expiryDate  DateTime
+  alertSentAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([vehicleId, type])
+  @@index([expiryDate])
+  @@map("vehicle_documents")
+}
+
+model MessageLog {
+  id            String          @id @default(cuid())
+  recipientType RecipientType
+  recipientId   String
+  recipientName String?
+  destination   String
+  channel       MessageChannel
+  template      String
+  subject       String?
+  body          String
+  status        MessageStatus   @default(QUEUED)
+  providerRef   String?
+  error         String?
+  scheduledFor  DateTime?
+  sentAt        DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([status, scheduledFor])
+  @@index([recipientType, recipientId])
+  @@map("message_logs")
+}
+
+model CarHireSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@map("car_hire_settings")
 }
