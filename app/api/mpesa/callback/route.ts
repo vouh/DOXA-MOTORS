@@ -59,6 +59,26 @@ export async function POST(req: NextRequest) {
 
   const checkoutRequestId = cb.CheckoutRequestID
 
+  // Car-hire STK payments are recorded directly against a booking. Handle them
+  // before the legacy contribution callback path below.
+  const carPayment = checkoutRequestId
+    ? await prisma.carPayment.findUnique({ where: { checkoutId: checkoutRequestId } })
+    : null
+  if (carPayment) {
+    const items = cb.CallbackMetadata?.Item || []
+    const receipt = String(items.find((i) => i.Name === 'MpesaReceiptNumber')?.Value || '')
+    const amount = Number(items.find((i) => i.Name === 'Amount')?.Value || carPayment.amount)
+    if (cb.ResultCode === 0) {
+      await prisma.carPayment.update({
+        where: { id: carPayment.id },
+        data: { status: 'COMPLETED', amount, mpesaRef: receipt || undefined, paidAt: new Date() },
+      })
+    } else {
+      await prisma.carPayment.update({ where: { id: carPayment.id }, data: { status: 'FAILED' } })
+    }
+    return NextResponse.json({ ResultCode: 0, ResultDesc: 'Accepted' })
+  }
+
   // Look up the initiating STK for userId + meta (phone, amount)
   const stkInit = checkoutRequestId ? await findStkInit(checkoutRequestId) : null
   const initiatorUserId = stkInit?.userId

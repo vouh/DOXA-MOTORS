@@ -151,7 +151,7 @@ model User {
   announcements        Announcement[]
   announcementReceipts AnnouncementReceipt[]
   documents            Document[]
-  meetings             Meeting[]      @relation("MeetingRecorder")
+  meetings             Meeting[]             @relation("MeetingRecorder")
   galleryPhotos        GalleryPhoto[]
   emailLogs            EmailLog[]
 
@@ -287,10 +287,10 @@ model Meeting {
   agenda              String?
   minutes             String?
   opening             String?
-  attendees           String?   // members present
-  membersAbsent       String?   // absent without apology
-  membersApology      String?   // absent with apology
-  aob                 String?   // any other business
+  attendees           String? // members present
+  membersAbsent       String? // absent without apology
+  membersApology      String? // absent with apology
+  aob                 String? // any other business
   nextMeetingAt       DateTime?
   status              MeetingStatus @default(DRAFT)
   heldAt              DateTime
@@ -336,50 +336,50 @@ model AuditLog {
 }
 
 model CarOwner {
-  id                String          @id @default(cuid())
-  fullName          String
-  phone             String
-  email             String?
-  nationalId        String          @unique
-  kraPin            String?
-  bankDetails       String?
-  mpesaNumber       String?
-  idCopyUrl         String?
-  logbookUrl        String?
-  agreementUrl      String?
-  nextOfKin         String?
-  commissionType    CommissionType  @default(PERCENTAGE)
-  commissionValue   Float           @default(0)
+  id                 String         @id @default(cuid())
+  fullName           String
+  phone              String
+  email              String?
+  nationalId         String         @unique
+  kraPin             String?
+  bankDetails        String?
+  mpesaNumber        String?
+  idCopyUrl          String?
+  logbookUrl         String?
+  agreementUrl       String?
+  nextOfKin          String?
+  commissionType     CommissionType @default(PERCENTAGE)
+  commissionValue    Float          @default(0)
   recurringDeduction Float          @default(0)
-  active            Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  vehicles          CarVehicle[]
-  expenses          CarExpense[]
-  payouts           OwnerPayout[]
+  active             Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  vehicles           CarVehicle[]
+  expenses           CarExpense[]
+  payouts            OwnerPayout[]
 
   @@index([phone])
   @@map("car_owners")
 }
 
 model CarVehicle {
-  id               String           @id @default(cuid())
-  ownerId          String
-  owner            CarOwner         @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  regNumber        String           @unique
-  make             String
-  model            String
-  year             Int?
-  color            String?
-  type             VehicleType
-  dailyRate        Float
-  status           VehicleStatus    @default(AVAILABLE)
-  imageUrl         String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  bookings         CarBooking[]
-  expenses         CarExpense[]
-  documents        VehicleDocument[]
+  id        String            @id @default(cuid())
+  ownerId   String
+  owner     CarOwner          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  regNumber String            @unique
+  make      String
+  model     String
+  year      Int?
+  color     String?
+  type      VehicleType
+  dailyRate Float
+  status    VehicleStatus     @default(AVAILABLE)
+  imageUrl  String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  bookings  CarBooking[]
+  expenses  CarExpense[]
+  documents VehicleDocument[]
 
   @@index([ownerId])
   @@index([status])
@@ -387,24 +387,24 @@ model CarVehicle {
 }
 
 model CarClient {
-  id               String        @id @default(cuid())
-  fullName         String
-  phone            String        @unique
-  email            String?
-  idOrPassportNo   String        @unique
-  idCopyUrl        String?
-  licenceNo        String
-  licenceCopyUrl   String?
-  licenceExpiry    DateTime?
-  physicalAddress  String?
-  nextOfKin        String?
-  employer         String?
-  secondContact    String?
-  status           ClientStatus  @default(ACTIVE)
-  notes            String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  bookings         CarBooking[]
+  id              String       @id @default(cuid())
+  fullName        String
+  phone           String       @unique
+  email           String?
+  idOrPassportNo  String       @unique
+  idCopyUrl       String?
+  licenceNo       String
+  licenceCopyUrl  String?
+  licenceExpiry   DateTime?
+  physicalAddress String?
+  nextOfKin       String?
+  employer        String?
+  secondContact   String?
+  status          ClientStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  bookings        CarBooking[]
 
   @@index([fullName])
   @@map("car_clients")
@@ -430,35 +430,35 @@ model PenaltyRule {
 }
 
 model CarBooking {
-  id                    String          @id @default(cuid())
-  reference             String          @unique
-  clientId              String
-  client                CarClient       @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  vehicleId             String
-  vehicle               CarVehicle      @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  penaltyRuleId         String?
-  penaltyRule           PenaltyRule?    @relation(fields: [penaltyRuleId], references: [id], onDelete: SetNull)
-  startAt               DateTime
-  expectedReturnAt      DateTime
-  actualReturnAt        DateTime?
-  dailyRate             Float
-  days                  Int
-  baseCharge            Float
-  additionalCharge      Float           @default(0)
-  penaltyAmount         Float           @default(0)
-  totalCharge           Float
-  status                BookingStatus   @default(RESERVED)
-  dispatchNotes         String?
-  returnNotes           String?
-  createdBy             String?
-  dispatchedAt          DateTime?
-  returnedAt            DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  checks                ConditionCheck[]
-  extensions            CarHireExtension[]
-  penalties             CarPenalty[]
-  payments              CarPayment[]
+  id               String             @id @default(cuid())
+  reference        String             @unique
+  clientId         String
+  client           CarClient          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  vehicleId        String
+  vehicle          CarVehicle         @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  penaltyRuleId    String?
+  penaltyRule      PenaltyRule?       @relation(fields: [penaltyRuleId], references: [id], onDelete: SetNull)
+  startAt          DateTime
+  expectedReturnAt DateTime
+  actualReturnAt   DateTime?
+  dailyRate        Float
+  days             Int
+  baseCharge       Float
+  additionalCharge Float              @default(0)
+  penaltyAmount    Float              @default(0)
+  totalCharge      Float
+  status           BookingStatus      @default(RESERVED)
+  dispatchNotes    String?
+  returnNotes      String?
+  createdBy        String?
+  dispatchedAt     DateTime?
+  returnedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  checks           ConditionCheck[]
+  extensions       CarHireExtension[]
+  penalties        CarPenalty[]
+  payments         CarPayment[]
 
   @@index([clientId])
   @@index([vehicleId])
@@ -484,15 +484,15 @@ model ConditionCheck {
 }
 
 model CarHireExtension {
-  id              String      @id @default(cuid())
-  bookingId       String
-  booking         CarBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id               String     @id @default(cuid())
+  bookingId        String
+  booking          CarBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   previousReturnAt DateTime
-  newReturnAt     DateTime
-  extraDays       Int
-  extraAmount     Float
-  createdBy       String?
-  createdAt       DateTime    @default(now())
+  newReturnAt      DateTime
+  extraDays        Int
+  extraAmount      Float
+  createdBy        String?
+  createdAt        DateTime   @default(now())
 
   @@index([bookingId])
   @@map("car_hire_extensions")
@@ -503,7 +503,7 @@ model CarPenalty {
   bookingId        String
   booking          CarBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   ruleId           String
-  rule              PenaltyRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  rule             PenaltyRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
   minutesLate      Int
   amount           Float
   calculationNotes String
@@ -514,18 +514,18 @@ model CarPenalty {
 }
 
 model CarPayment {
-  id             String           @id @default(cuid())
-  bookingId      String
-  booking        CarBooking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  amount         Float
-  method         PaymentMethod
-  status         CarPaymentStatus @default(COMPLETED)
-  mpesaRef       String?          @unique
-  checkoutId     String?          @unique
-  phone          String?
-  receivedBy     String?
-  paidAt         DateTime?
-  createdAt      DateTime         @default(now())
+  id         String           @id @default(cuid())
+  bookingId  String
+  booking    CarBooking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  amount     Float
+  method     PaymentMethod
+  status     CarPaymentStatus @default(COMPLETED)
+  mpesaRef   String?          @unique
+  checkoutId String?          @unique
+  phone      String?
+  receivedBy String?
+  paidAt     DateTime?
+  createdAt  DateTime         @default(now())
 
   @@index([bookingId, status])
   @@index([paidAt])
@@ -533,17 +533,17 @@ model CarPayment {
 }
 
 model CarExpense {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   vehicleId   String
-  vehicle     CarVehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  vehicle     CarVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   ownerId     String
-  owner       CarOwner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner       CarOwner   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   description String
   category    String
   amount      Float
   incurredAt  DateTime
   recordedBy  String?
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime   @default(now())
 
   @@index([ownerId, incurredAt])
   @@index([vehicleId, incurredAt])
@@ -589,7 +589,7 @@ model VehicleDocument {
 }
 
 model MessageLog {
-  id            String          @id @default(cuid())
+  id            String         @id @default(cuid())
   recipientType RecipientType
   recipientId   String
   recipientName String?
@@ -598,12 +598,12 @@ model MessageLog {
   template      String
   subject       String?
   body          String
-  status        MessageStatus   @default(QUEUED)
+  status        MessageStatus  @default(QUEUED)
   providerRef   String?
   error         String?
   scheduledFor  DateTime?
   sentAt        DateTime?
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime       @default(now())
 
   @@index([status, scheduledFor])
   @@index([recipientType, recipientId])
