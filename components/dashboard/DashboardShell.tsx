@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { ADMIN_SIDEBAR_LOGO } from '@/lib/constants'
+import BrandLogo from '@/components/brand/BrandLogo'
 import { meRequest, type AuthUser, type Role } from '@/lib/auth/client'
 import { ROLE_HOME, ROLE_LABEL } from '@/lib/auth/types'
 import ThemeLoader from '@/components/ui/ThemeLoader'
@@ -183,12 +183,7 @@ export default function DashboardShell({ role, title, nav, children }: Props) {
         <div
           className={`pt-lg pb-md flex items-center gap-sm border-b border-white/10 ${collapsed ? 'justify-center px-sm' : 'px-md'}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={ADMIN_SIDEBAR_LOGO}
-            alt="Doxa Car Hire"
-            className="h-11 w-11 rounded-full bg-white/10 p-1 flex-shrink-0"
-          />
+          <BrandLogo variant={collapsed ? 'compact' : 'sidebar'} />
           {!collapsed && (
             <div>
               <p className="font-h3 text-[19px] font-bold text-on-primary leading-none">Doxa</p>

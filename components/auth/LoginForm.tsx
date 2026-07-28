@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { type FormEvent, useEffect, useState } from 'react'
-import { ADMIN_LOGIN_LOGO } from '@/lib/constants'
+import BrandLogo from '@/components/brand/BrandLogo'
 import DevAccountsDropdown from '@/components/auth/DevAccountsDropdown'
 import { homeForRole, loginRequest, logoutRequest, meRequest, registerRequest, type AuthUser } from '@/lib/auth/client'
 
@@ -109,8 +109,8 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
     <div className="fixed inset-0 z-[200] bg-primary flex items-center justify-center min-h-screen px-md overflow-y-auto py-xl">
       <div className="w-full max-w-[420px]">
         <div className="flex justify-center">
-          <div className="mb-[-30px] relative z-10 bg-surface rounded-2xl px-md py-sm shadow-xl border border-outline-variant/30">
-            <img src={ADMIN_LOGIN_LOGO} alt="Doxa Car Hire" className="h-12 w-auto object-contain" />
+          <div className="mb-[-30px] relative z-10">
+            <BrandLogo variant="login" />
           </div>
         </div>
         <div className="bg-surface rounded-2xl pt-[52px] pb-lg px-lg shadow-2xl border border-white/10">

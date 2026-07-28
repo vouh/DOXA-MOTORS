@@ -10,7 +10,12 @@ import { isAppRole, isMemberStatus } from '@/lib/auth/helpers'
 import { normalizeSupabaseUrl, isSupabaseConfigured } from '@/lib/supabase-url'
 
 function isProtectedPath(pathname: string) {
-  if (pathname === '/admin/login' || pathname.startsWith('/admin/login/')) {
+  if (
+    pathname === '/admin/login' ||
+    pathname.startsWith('/admin/login/') ||
+    pathname === '/admin/setup' ||
+    pathname.startsWith('/admin/setup/')
+  ) {
     return false
   }
   return (
@@ -53,6 +58,8 @@ function allowedPath(
 }
 
 export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
+
   // When Supabase isn't connected yet, skip all auth checks and let pages render.
   if (!isSupabaseConfigured()) return NextResponse.next()
 
@@ -82,8 +89,6 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  const { pathname } = req.nextUrl
 
   if (!isProtectedPath(pathname) && pathname !== '/pending') {
     return supabaseResponse

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ADMIN_SIDEBAR_LOGO } from '@/lib/constants'
+import BrandLogo from '@/components/brand/BrandLogo'
 import { NAV, NOTIFS } from '@/lib/admin/data'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -87,11 +87,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         {/* Logo */}
         <div className={`pt-5 pb-4 flex items-center gap-3 border-b border-white/10 shrink-0 ${collapsed ? 'justify-center px-3' : 'px-4'}`}>
-          <img
-            src={ADMIN_SIDEBAR_LOGO}
-            alt="Doxa Car Hire"
-            className="h-11 w-11 rounded-full bg-white/10 p-1 shrink-0 object-contain"
-          />
+          <BrandLogo variant={collapsed ? 'compact' : 'sidebar'} />
           {!collapsed && (
             <div>
               <p className="font-h3 text-[17px] font-bold text-white leading-none">Doxa</p>

@@ -19,6 +19,23 @@ Web-based management platform for **Doxa Car Hire Services**.
 
 ## Quick start
 
+### Windows PowerShell
+
+If PowerShell blocks `npm.ps1` because script execution is disabled, use the
+included Command Prompt launcher. It does not require changing the Windows
+execution policy:
+
+```powershell
+.\setup.cmd
+.\dev.cmd
+```
+
+You can also call npm's Windows executable directly:
+
+```powershell
+npm.cmd run dev
+```
+
 ```bash
 npm install
 copy .env.local.example .env.local   # fill secrets — see BACKEND_SETUP
