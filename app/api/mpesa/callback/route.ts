@@ -25,7 +25,13 @@ export async function POST(req: NextRequest) {
     ? await prisma.carPayment.findUnique({ where: { checkoutId: checkoutRequestId } })
     : null
 
+  // Car-hire is the only STK flow. Always ACK Safaricom (ResultCode 0) even when
+  // CheckoutRequestID is unknown — retries otherwise — but log for reconciliation.
   if (!carPayment) {
+    console.warn('[mpesa/callback] No carPayment for CheckoutRequestID', checkoutRequestId, {
+      ResultCode: cb.ResultCode,
+      ResultDesc: cb.ResultDesc,
+    })
     return NextResponse.json({ ResultCode: 0, ResultDesc: 'Accepted' })
   }
 

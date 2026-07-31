@@ -4,6 +4,11 @@ import type { User } from '@prisma/client'
 const STAFF_ROLES: StaffRole[] = ['DIRECTOR', 'CLERK', 'YARD', 'ACCOUNTANT']
 const STATUSES: UserStatus[] = ['ACTIVE', 'INACTIVE', 'SUSPENDED']
 
+/** Canonicalize emails for storage and lookups (Postgres UNIQUE is case-sensitive). */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
 export function isStaffRole(value: unknown): value is StaffRole {
   return typeof value === 'string' && STAFF_ROLES.includes(value as StaffRole)
 }

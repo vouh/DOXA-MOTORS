@@ -6,6 +6,7 @@ import { requireDirector, requireActiveStaff, syncUserMetadata } from '@/lib/aut
 import { writeAudit } from '@/lib/audit'
 import type { StaffRole, UserStatus } from '@/lib/auth/types'
 import { createServerClient } from '@/lib/supabase-server'
+import { normalizeEmail } from '@/lib/auth/helpers'
 import { z } from 'zod'
 
 type ActionResult = { ok: true; message: string } | { ok: false; message: string }
@@ -15,7 +16,7 @@ function fail(error: unknown): ActionResult {
 }
 
 const inviteSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(normalizeEmail),
   fullName: z.string().min(2),
   phone: z.string().optional(),
   staffRole: z.enum(['DIRECTOR', 'CLERK', 'YARD', 'ACCOUNTANT']),
@@ -26,7 +27,9 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
   try {
     const actor = await requireDirector()
     const data = inviteSchema.parse(Object.fromEntries(formData.entries()))
-    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    const existing = await prisma.user.findFirst({
+      where: { email: { equals: data.email, mode: 'insensitive' } },
+    })
     if (existing) throw new Error('A staff account with that email already exists.')
 
     const admin = createServerClient()

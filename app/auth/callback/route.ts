@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { prisma } from '@/lib/prisma'
 import { ADMIN_HOME } from '@/lib/auth/types'
 import { syncUserMetadata } from '@/lib/auth/session'
+import { normalizeEmail } from '@/lib/auth/helpers'
 
 /**
  * Staff access is invitation-only: a Prisma User must already exist.
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
     return rejectUninvited(data.user.id, origin, 'oauth')
   }
 
-  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedEmail = normalizeEmail(email)
 
   let profile = await prisma.user.findFirst({
     where: {
@@ -69,10 +70,13 @@ export async function GET(request: Request) {
     return rejectUninvited(data.user.id, origin, 'not_invited')
   }
 
-  if (!profile.authUserId) {
+  if (!profile.authUserId || profile.email !== normalizedEmail) {
     profile = await prisma.user.update({
       where: { id: profile.id },
-      data: { authUserId: data.user.id },
+      data: {
+        ...(!profile.authUserId ? { authUserId: data.user.id } : {}),
+        ...(profile.email !== normalizedEmail ? { email: normalizedEmail } : {}),
+      },
     })
   }
 

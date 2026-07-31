@@ -7,10 +7,10 @@ import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { ADMIN_HOME } from '@/lib/auth/types'
 import { syncUserMetadata } from '@/lib/auth/session'
-import { toAuthUser } from '@/lib/auth/helpers'
+import { normalizeEmail, toAuthUser } from '@/lib/auth/helpers'
 
 const bodySchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(normalizeEmail),
   password: z.string().min(1),
 })
 
@@ -22,10 +22,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email or password.' }, { status: 400 })
     }
 
+    const email = parsed.data.email
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: parsed.data.email,
+      email,
       password: parsed.data.password,
     })
 
@@ -37,8 +38,8 @@ export async function POST(req: Request) {
           { status: 401 },
         )
       }
-      const knownProfile = await prisma.user.findUnique({
-        where: { email: parsed.data.email },
+      const knownProfile = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
         select: { id: true },
       })
       if (!knownProfile) {
@@ -52,7 +53,10 @@ export async function POST(req: Request) {
 
     let profile = await prisma.user.findFirst({
       where: {
-        OR: [{ authUserId: data.user.id }, { email: parsed.data.email }],
+        OR: [
+          { authUserId: data.user.id },
+          { email: { equals: email, mode: 'insensitive' } },
+        ],
       },
     })
 

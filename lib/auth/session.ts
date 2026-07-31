@@ -74,9 +74,13 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     }
   }
 
+  const email = authUser.email?.trim().toLowerCase()
   let profile = await prisma.user.findFirst({
     where: {
-      OR: [{ authUserId: authUser.id }, { email: authUser.email ?? undefined }],
+      OR: [
+        { authUserId: authUser.id },
+        ...(email ? [{ email: { equals: email, mode: 'insensitive' as const } }] : []),
+      ],
     },
   })
 

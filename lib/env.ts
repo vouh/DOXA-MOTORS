@@ -32,16 +32,14 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
   }
 
   if (env.NODE_ENV === 'production') {
-    const missing = productionRequired.filter((key) => !env[key]?.trim())
+    const missing: string[] = productionRequired.filter((key) => !env[key]?.trim())
     const hasSupabaseKey =
       Boolean(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()) ||
       Boolean(env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim())
     const hasServiceKey =
       Boolean(env.SUPABASE_SERVICE_ROLE_KEY?.trim()) || Boolean(env.SUPABASE_SECRET_KEY?.trim())
-    if (!hasSupabaseKey) missing.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' as typeof productionRequired[number])
-    if (!hasServiceKey) {
-      throw new Error('Invalid environment: SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY is required in production')
-    }
+    if (!hasSupabaseKey) missing.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)')
+    if (!hasServiceKey) missing.push('SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY)')
     if (missing.length) {
       throw new Error(`Invalid environment: missing ${missing.join(', ')}`)
     }

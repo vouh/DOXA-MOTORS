@@ -21,11 +21,6 @@ export default function LoginForm({ title = 'Staff Login' }: Props) {
   const [devOpen, setDevOpen] = useState(false)
 
   useEffect(() => {
-    setEmail('superadmin@doxacarhire.com')
-    setPassword('SuperAdmin@2026!')
-  }, [])
-
-  useEffect(() => {
     meRequest().then((user: AuthUser | null) => {
       if (user) {
         const next = searchParams.get('next')
