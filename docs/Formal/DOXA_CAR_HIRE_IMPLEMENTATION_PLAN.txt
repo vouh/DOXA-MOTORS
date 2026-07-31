@@ -1,0 +1,294 @@
+DOXA MOTOR SOLUTIONS - CAR HIRE MANAGEMENT SYSTEM
+STAGED IMPLEMENTATION PLAN AND CURRENT-SYSTEM AUDIT
+Audit date: 31 July 2026
+
+PURPOSE
+This document converts the Solution Design Document (SP-DOXA-2026-001) into an actionable implementation plan. It also records what is already present in the current Doxa repository.
+
+STATUS KEY
+[IMPLEMENTED]      Feature and core workflow exist in the repository.
+[PARTIAL]          Some code/UI/data structures exist, but important work remains.
+[NOT IMPLEMENTED]  No usable implementation was found.
+[VERIFY]           Code exists, but production credentials, infrastructure, or end-to-end testing are required.
+
+IMPORTANT AUDIT NOTE
+This is a source-code audit, not confirmation that every database migration, provider credential, cron schedule, or production environment is live. An item is only called fully implemented when its main UI, persistence, and business workflow are present. Provider-dependent items are marked PARTIAL/VERIFY until tested end to end.
+
+======================================================================
+STAGE 1 - FOUNDATION, DATABASE, AUTHENTICATION AND SECURITY
+Priority: Critical; complete before production use
+======================================================================
+
+Already present
+[IMPLEMENTED] Next.js App Router, React, TypeScript, Tailwind CSS and branded admin UI.
+[IMPLEMENTED] Prisma/PostgreSQL configuration and relational car-hire models.
+[IMPLEMENTED] Zod schemas for client, owner, vehicle, booking, condition, penalty, payment and expense inputs.
+[IMPLEMENTED] Supabase authentication/session utilities and login screens exist.
+[PARTIAL] User accounts and access concepts exist, but current roles are legacy organization roles (ADMIN, EXECUTIVE, TREASURER, etc.), not the agreed Director, Receptionist, Yard Staff and Accountant model.
+[PARTIAL] Staff & Role Management screen exists, but it uses hard-coded in-browser sample data; edits are not persisted.
+[NOT IMPLEMENTED] Consistent server-side role checks on car-hire server actions, admin pages, export, cron and M-Pesa endpoints.
+[PARTIAL] Audit-log infrastructure exists, but car-hire changes such as penalty settings, commissions, dispatch and settlement are not consistently written to it.
+
+Implementation work
+1. Define persistent car-hire roles and a permission matrix: Director, Receptionist, Yard Staff and Accountant.
+2. Persist staff accounts and permissions; remove hard-coded demo staff/roles.
+3. Protect every /admin car-hire page, server action and API route server-side.
+4. Record actor IDs on bookings, condition checks, payments, expenses and configuration changes.
+5. Add audit entries for sensitive actions and configuration changes.
+6. Review storage policies so IDs, licences, logbooks and agreements are private.
+7. Add rate limiting/input hardening to login, lookup and payment endpoints.
+
+Acceptance criteria
+- Unauthorized users cannot read or mutate car-hire data by directly calling an action or URL.
+- Each agreed role can perform only its approved tasks.
+- Staff and permission changes survive refresh/restart.
+- Sensitive changes identify the actor and time.
+
+======================================================================
+STAGE 2 - CLIENTS, OWNERS, VEHICLES AND PRIVATE DOCUMENTS
+Priority: High
+======================================================================
+
+Already present
+[IMPLEMENTED] Client database model and registration UI with name, phone, email, ID/passport, licence, expiry, address, next of kin, employer, second contact and status.
+[IMPLEMENTED] Client search by phone or ID/passport.
+[IMPLEMENTED] Client suspension and activation.
+[IMPLEMENTED] Owner model and registration UI, including commission type/value and recurring deduction.
+[IMPLEMENTED] Vehicle register, owner assignment, vehicle type, daily rate and operational status.
+[IMPLEMENTED] Insurance and inspection expiry records can be created with a vehicle.
+[PARTIAL] Database fields exist for client ID/licence files and owner ID/logbook/agreement files, but the car-hire forms do not upload or manage these files.
+[PARTIAL] Vehicle image/document file URLs exist, but complete private upload/view/replace/delete workflows are missing.
+[NOT IMPLEMENTED] Edit/detail workflows for existing clients, owners and vehicles are incomplete or absent.
+[NOT IMPLEMENTED] Licence-validity enforcement during booking/dispatch.
+
+Implementation work
+1. Add secure Supabase Storage upload controls for client ID, driving licence, owner ID, logbook, signed agreement, vehicle image and certificates.
+2. Add authorized signed-link viewing and safe replacement/deletion.
+3. Add client, owner and vehicle detail/edit screens with validation and audit history.
+4. Prevent booking/dispatch for suspended clients or expired licences.
+5. Add uniqueness/conflict messages for duplicate phone, ID, licence and registration values.
+
+Acceptance criteria
+- Required records and private document copies can be created, viewed and updated by authorized staff.
+- National ID/phone lookup returns the correct client quickly.
+- Suspended clients and invalid licences cannot proceed to dispatch.
+
+======================================================================
+STAGE 3 - BOOKING, DISPATCH, EXTENSION, RETURN AND CHARGES
+Priority: High
+======================================================================
+
+Already present
+[IMPLEMENTED] Booking creation with client, vehicle, start/end time and daily rate.
+[IMPLEMENTED] Automatic base-charge/day calculation.
+[IMPLEMENTED] Overlapping active booking prevention.
+[IMPLEMENTED] Booking references and status lifecycle.
+[IMPLEMENTED] Dispatch condition check with dents, fuel, odometer and component status.
+[IMPLEMENTED] Dispatch changes vehicle status to hired.
+[IMPLEMENTED] Hire-extension calculation and persistence exists in server logic.
+[PARTIAL] Hire extension has server logic but no clear control in the bookings UI.
+[IMPLEMENTED] Return condition check and vehicle check-in.
+[IMPLEMENTED] Configurable penalty rules with grace period, hourly/daily rate and cap.
+[IMPLEMENTED] Penalty snapshots/trace data store rule, minutes late, amount and calculation notes.
+[IMPLEMENTED] Check-in applies lateness penalty and returns the vehicle to available status.
+[PARTIAL] Condition photo storage exists in the model but upload/capture UI is missing.
+[PARTIAL] Booking-created confirmation is required but is not queued when a booking is created.
+[PARTIAL] Dispatch message is queued, but Director dispatch/payment/fleet-count notification is missing.
+[NOT IMPLEMENTED] Client invoice, receipt and hire-agreement generation.
+
+Implementation work
+1. Expose hire extension in the booking UI and validate vehicle conflicts after extension.
+2. Add condition-photo upload at dispatch and return.
+3. Queue booking-confirmed messages and Director dispatch summaries.
+4. Generate printable/downloadable hire agreement, invoice and receipt.
+5. Add booking cancellation and safe vehicle-status recovery.
+6. Add full booking detail/history view, including checks, extensions, penalties and payments.
+
+Acceptance criteria
+- A booking can complete the full reserved -> dispatched -> returned lifecycle.
+- Charges and penalties are reproducible from stored values.
+- Extensions update charges and expected return time without creating conflicts.
+- Required agreements and transaction documents can be produced.
+
+======================================================================
+STAGE 4 - PAYMENTS, M-PESA AND OWNER SETTLEMENT
+Priority: High; depends on client Daraja/Paybill details
+======================================================================
+
+Already present
+[IMPLEMENTED] Manual CASH, M-PESA, BANK and OTHER payment recording.
+[IMPLEMENTED] Paid and outstanding balances are calculated from completed payments.
+[PARTIAL/VERIFY] Car-hire M-Pesa STK Push route and Daraja client exist; real credentials and live/sandbox tests are required.
+[PARTIAL/VERIFY] M-Pesa callback finds pending car-hire payments and marks them completed/failed; callback security, idempotency and real-provider behavior require hardening/testing.
+[NOT IMPLEMENTED] Paybill/C2B reconciliation for payments initiated outside STK Push.
+[PARTIAL] Payment-received messages are queued for manually recorded payments, but the STK callback does not queue the same confirmation.
+[IMPLEMENTED] Vehicle/owner expense entry and expense attribution.
+[IMPLEMENTED] Owner settlement calculation supports percentage/fixed commission, recurring deduction and itemized expenses.
+[IMPLEMENTED] Monthly payout generation and persisted draft payout records.
+[PARTIAL] Owner statements are displayed as rows but no detailed statement document/report exists.
+[NOT IMPLEMENTED] Approve payout, mark payout paid, save payment reference and notify owner.
+
+Implementation work
+1. Add authenticated STK controls to booking/finance UI and restrict amount to the valid outstanding balance unless override is authorized.
+2. Harden callback idempotency, amount/reference validation, logging and failure recovery.
+3. Implement Paybill C2B confirmation/validation and unmatched-payment reconciliation.
+4. Queue payment confirmations for successful callback payments.
+5. Build payout approval/payment workflow and immutable settlement details.
+6. Generate individual owner statements and payout reports; notify owner after payment.
+
+Acceptance criteria
+- STK and Paybill payments reconcile once against the correct booking.
+- Failed/unmatched transactions are visible and recoverable.
+- Owner gross earnings, deductions, expenses and net pay are explainable.
+- A payout can be approved, paid, documented and communicated.
+
+======================================================================
+STAGE 5 - AUTOMATED SMS, EMAIL, SCHEDULER AND BULK MESSAGING
+Priority: High; depends on approved templates/providers/Sender ID
+======================================================================
+
+Already present
+[IMPLEMENTED] Message-log/queue database model and communication audit page.
+[IMPLEMENTED] Events queue dispatch, return and manually recorded payment messages.
+[IMPLEMENTED] Cron logic queues hire-ending-soon notices within two hours.
+[IMPLEMENTED] Cron logic marks late dispatched bookings overdue and queues overdue notices.
+[IMPLEMENTED] Cron logic finds vehicle documents expiring within seven days and queues Director alerts.
+[PARTIAL] Resend email integration exists elsewhere in the repository, but the car-hire message queue has no delivery worker.
+[NOT IMPLEMENTED] SMS gateway/Sender ID delivery integration for car-hire messages.
+[NOT IMPLEMENTED] Worker that sends QUEUED messages and updates SENT/DELIVERED/FAILED status.
+[PARTIAL] Current logic chooses email instead of SMS when email exists; the SDD workflow says SMS + email for events, with email used where available.
+[NOT IMPLEMENTED] Bulk SMS to clients and owner broadcast messaging.
+[NOT IMPLEMENTED] Retry policy, provider delivery callbacks and duplicate-send protection across all triggers.
+[VERIFY] Production cron schedule and CRON_SECRET configuration.
+
+Implementation work
+1. Confirm channel rule with client, then generate SMS plus email where required.
+2. Add approved templates with variables and versioning.
+3. Implement email/SMS queue worker, provider adapters, retries and status updates.
+4. Add provider delivery webhooks where supported.
+5. Add bulk client and owner broadcast composer with preview, audience filters and audit log.
+6. Schedule and monitor the cron endpoint in production.
+
+Acceptance criteria
+- Every required trigger sends the approved message through the correct channels exactly once.
+- Failed deliveries are visible and retryable.
+- Bulk sends require permission and show recipient count/preview before submission.
+
+======================================================================
+STAGE 6 - DASHBOARD, REPORTING, PDF/EXCEL AND DATA MIGRATION
+Priority: Medium/High
+======================================================================
+
+Already present
+[IMPLEMENTED] Director dashboard shows fleet totals/statuses, due today, overdue, today/month collections, debt and expiring documents.
+[IMPLEMENTED] Live hire/balance table.
+[IMPLEMENTED] Finance page shows recent payments, expenses, owner payout summaries and total outstanding debt.
+[PARTIAL] CSV exports exist for clients, owners and booking ledger.
+[NOT IMPLEMENTED] Required true Excel (.xlsx) exports.
+[NOT IMPLEMENTED] Required PDF car-hire reports.
+[NOT IMPLEMENTED] Complete report set: revenue by vehicle, revenue by month, expenses by vehicle, outstanding balances, full booking history, owner payout report and individual owner statement.
+[NOT IMPLEMENTED] PDF invoice, receipt and hire agreement.
+[NOT IMPLEMENTED] Car-hire data migration/import for existing vehicle, owner and client records.
+[PARTIAL] The header notification bell uses sample static notifications rather than live car-hire data.
+
+Implementation work
+1. Add report filters for date, owner, vehicle, client and status.
+2. Build all agreed report queries with totals that reconcile to booking/payment data.
+3. Generate branded PDF documents and real .xlsx workbooks.
+4. Replace static header notifications with database-backed alerts.
+5. Build staged CSV/Excel imports for clients, owners and vehicles: preview, validation, duplicate resolution, import and error report.
+6. Clean and import the client-provided Word/paper data after approval.
+
+Acceptance criteria
+- Every report matches underlying transactions for the selected period.
+- All specified reports export in PDF and Excel.
+- Migration is repeatable, validates records and does not silently create duplicates.
+
+======================================================================
+STAGE 7 - TESTING, HARDENING AND ACCEPTANCE
+Priority: Critical
+======================================================================
+
+Already present
+[IMPLEMENTED] Unit test file covers basic booking-charge, penalty, balance and owner-settlement calculations.
+[PARTIAL] Core arithmetic has basic tests, but edge-case and workflow coverage is limited.
+[NOT IMPLEMENTED] Automated integration/end-to-end tests for full car-hire workflows.
+[NOT IMPLEMENTED] Security/permission test suite.
+[NOT IMPLEMENTED] Provider sandbox test evidence for M-Pesa, email and SMS.
+[NOT IMPLEMENTED] Formal migration reconciliation and user-acceptance test record.
+
+Implementation work
+1. Expand unit tests for time zones, partial days, grace boundaries, caps, extensions, rounding, refunds and owner deductions.
+2. Add database integration tests for conflicts, check-in, callbacks, payouts and duplicate events.
+3. Add end-to-end tests per role for booking through settlement.
+4. Test permission bypass attempts against actions and API routes.
+5. Test mobile/responsive UI and supported browsers.
+6. Run M-Pesa sandbox, email and SMS delivery tests.
+7. Execute backup/restore and migration reconciliation tests.
+8. Conduct client UAT and resolve all critical/high issues.
+
+Acceptance criteria
+- Production build, automated tests and security checks pass.
+- No critical defect remains.
+- Client signs off the agreed UAT scenarios.
+
+======================================================================
+STAGE 8 - DEPLOYMENT, TRAINING, HANDOVER AND SUPPORT
+Priority: Final release
+======================================================================
+
+Already present
+[PARTIAL] Netlify/deployment configuration and environment examples exist.
+[PARTIAL] Setup/backend/design documentation exists, but production car-hire runbooks and complete handover evidence are not confirmed.
+[NOT IMPLEMENTED/VERIFY] Production deployment, DNS, provider secrets, database migration, scheduled jobs and monitoring configuration.
+[NOT IMPLEMENTED] Staff training and signed handover/UAT record.
+
+Implementation work
+1. Provision production database/storage with backups and least-privilege policies.
+2. Configure deployment secrets, domain/DNS, Daraja, Resend, SMS provider, Sender ID, cron and error monitoring.
+3. Apply schema safely, migrate approved data and reconcile totals/counts.
+4. Complete smoke tests and controlled go-live.
+5. Train Director, Receptionist, Yard Staff and Accountant using role-specific scenarios.
+6. Deliver source, environment inventory, admin credentials, data export/backup procedure, operating guide and support route.
+7. Start the agreed 60-calendar-day defect support period from go-live.
+
+Acceptance criteria
+- Production services, callbacks, messages, cron and backups operate successfully.
+- Authorized staff can complete their workflows after training.
+- Handover pack and acceptance record are delivered.
+
+======================================================================
+RECOMMENDED EXECUTION ORDER
+======================================================================
+
+1. Finish Stage 1 security/RBAC before exposing the admin system.
+2. Complete missing document and edit flows in Stage 2.
+3. Finish Stage 3 lifecycle gaps and documents.
+4. Complete and test Stage 4 payments/settlement.
+5. Connect real delivery providers and cron in Stage 5.
+6. Implement full reports/imports in Stage 6.
+7. Run Stage 7 throughout development, with final UAT after Stages 1-6.
+8. Release through Stage 8 only after critical acceptance criteria pass.
+
+======================================================================
+SUMMARY OF CURRENT POSITION
+======================================================================
+
+Strongest implemented areas:
+- Core relational data model.
+- Client, owner and vehicle registration.
+- Booking/dispatch/check-in lifecycle.
+- Charge, penalty, balance and owner-settlement calculations.
+- Basic Director dashboard and finance views.
+- Initial M-Pesa STK/callback and scheduler logic.
+
+Highest-risk missing areas:
+- Persistent car-hire RBAC and consistent server-side authorization.
+- Private document upload/management.
+- Actual queued-message delivery and SMS integration.
+- Paybill reconciliation and complete payout payment workflow.
+- Required PDF/Excel reporting and contractual documents.
+- Data migration tooling and comprehensive tests.
+- Production-provider/deployment verification.
+
+This plan should be updated after each stage by changing feature statuses and attaching test/UAT evidence.
