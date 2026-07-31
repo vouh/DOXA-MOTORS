@@ -1,9 +1,11 @@
 'use client'
 
-// Dev/local seed accounts (see docs/DATA_MODEL.md). This component renders
-// nothing in production builds, so these credentials never reach real users.
 const ACCOUNTS: { email: string; password: string; label: string }[] = [
-  { email: 'superadmin@doxacarhire.com', password: 'SuperAdmin@2026!', label: 'Super Admin' },
+  { email: 'superadmin@doxacarhire.com', password: 'SuperAdmin@2026!', label: 'Super Admin / Director' },
+  { email: 'admin@doxacarhire.com', password: 'ChangeMe123!', label: 'Director' },
+  { email: 'dispatch@doxacarhire.com', password: 'ChangeMe123!', label: 'Office Clerk' },
+  { email: 'fleet@doxacarhire.com', password: 'ChangeMe123!', label: 'Yard Staff' },
+  { email: 'finance@doxacarhire.com', password: 'ChangeMe123!', label: 'Accountant' },
 ]
 
 export default function DevAccountsDropdown({
@@ -25,16 +27,14 @@ export default function DevAccountsDropdown({
           <li key={a.email}>
             <button
               type="button"
-              // onMouseDown + preventDefault so the email input doesn't blur
-              // before the pick registers.
               onMouseDown={(e) => {
                 e.preventDefault()
                 onPick(a.email, a.password)
               }}
               className="w-full text-left px-3 py-2 hover:bg-surface-container transition-colors"
             >
-              <span className="block text-[13px] font-medium text-on-surface">{a.email}</span>
-              <span className="block text-[11px] text-on-surface-variant">{a.label}</span>
+              <span className="block text-[13px] font-medium text-on-surface">{a.label}</span>
+              <span className="block text-[11px] text-on-surface-variant">{a.email}</span>
             </button>
           </li>
         ))}

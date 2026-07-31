@@ -58,6 +58,7 @@ const envVars = [
   'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
   'DATABASE_URL',
   'DIRECT_URL',
 ]
@@ -151,12 +152,19 @@ if (envStatus('NEXT_PUBLIC_SUPABASE_URL') !== 'set') {
   }
 }
 
-// Service role
+// Service role / secret key
 console.log('\n3) Supabase JS (service role)')
-if (envStatus('SUPABASE_SERVICE_ROLE_KEY') !== 'set') {
-  console.log('   SKIP: SUPABASE_SERVICE_ROLE_KEY not set')
+const serviceKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+const serviceKeyStatus =
+  envStatus('SUPABASE_SERVICE_ROLE_KEY') === 'set'
+    ? 'set'
+    : envStatus('SUPABASE_SECRET_KEY')
+if (serviceKeyStatus !== 'set' || !serviceKey) {
+  console.log('   SKIP: Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY')
+  exitCode = 1
 } else if (envStatus('NEXT_PUBLIC_SUPABASE_URL') === 'set') {
-  const admin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const admin = createClient(supabaseUrl, serviceKey)
   const { error } = await admin.from('users').select('id').limit(1)
   if (error) {
     if (error.code === 'PGRST205' || error.message.includes('does not exist')) {

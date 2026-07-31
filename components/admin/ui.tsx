@@ -56,10 +56,21 @@ export function Th({ cols }: { cols: string[] }) {
   )
 }
 
-export function SectionHead({ title, action }: { title: string; action?: React.ReactNode }) {
+export function SectionHead({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string
+  subtitle?: string
+  action?: React.ReactNode
+}) {
   return (
-    <div className="flex items-center justify-between mb-5">
-      <h2 className="font-h3 text-[18px] font-bold text-on-surface dark:text-blue-50">{title}</h2>
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div>
+        <h1 className="text-lg font-bold text-on-surface">{title}</h1>
+        {subtitle ? <p className="text-sm text-on-surface-variant mt-0.5">{subtitle}</p> : null}
+      </div>
       {action}
     </div>
   )

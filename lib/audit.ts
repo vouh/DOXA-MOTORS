@@ -25,5 +25,3 @@ export async function writeAudit(entry: AuditEntry): Promise<void> {
     console.error('audit log failed', entry.action, e)
   }
 }
-
-export { formatAuditAction, formatAuditMeta, ACTION_LABELS } from '@/lib/audit-labels'

@@ -22,6 +22,6 @@ export async function POST() {
 export async function GET(req: Request) {
   await clearSession()
   const url = new URL(req.url)
-  const dest = url.searchParams.get('to') === 'admin' ? '/admin/login' : '/login'
+  const dest = '/admin/login'
   return NextResponse.redirect(new URL(dest, url.origin), { status: 303 })
 }

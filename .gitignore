@@ -10,6 +10,10 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
 
 # next.js
 /.next/
@@ -17,11 +21,13 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
 *.pem
 Thumbs.db
+*.log
 
 # debug
 npm-debug.log*
@@ -34,8 +40,9 @@ yarn-error.log*
 .env*.local
 !.env.local.example
 
-# vercel
+# vercel / sentry
 .vercel
+.sentryclirc
 
 # typescript
 *.tsbuildinfo
@@ -44,3 +51,7 @@ next-env.d.ts
 # prisma
 prisma/*.db
 prisma/*.db-journal
+
+# local scratch
+Untitled
+*.pack.gz

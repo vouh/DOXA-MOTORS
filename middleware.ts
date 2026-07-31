@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import {
-  ROLE_HOME,
-  allowedDashboards,
-  roleForDashboardPath,
-  type Role,
-} from '@/lib/auth/types'
-import { isAppRole, isMemberStatus } from '@/lib/auth/helpers'
+import { isStaffRole, isUserStatus } from '@/lib/auth/helpers'
 import { normalizeSupabaseUrl, isSupabaseConfigured } from '@/lib/supabase-url'
 
 function isProtectedPath(pathname: string) {
@@ -18,49 +12,12 @@ function isProtectedPath(pathname: string) {
   ) {
     return false
   }
-  return (
-    pathname.startsWith('/dashboard') ||
-    pathname === '/admin' ||
-    pathname.startsWith('/admin/') ||
-    pathname === '/profile' ||
-    pathname.startsWith('/profile/') ||
-    pathname === '/contributions' ||
-    pathname.startsWith('/contributions/') ||
-    pathname === '/announcements' ||
-    pathname.startsWith('/announcements/')
-  )
-}
-
-function parseDashboardAccess(raw: unknown): Role[] {
-  if (!Array.isArray(raw)) return []
-  return raw.filter(isAppRole)
-}
-
-function allowedPath(
-  role: Role,
-  pathname: string,
-  opts: { isSuperAdmin?: boolean; dashboardAccess?: Role[] }
-) {
-  const target = roleForDashboardPath(pathname)
-  if (!target) return false
-
-  // /admin* requires ADMIN primary or Super Admin
-  if (target === 'ADMIN') {
-    return role === 'ADMIN' || Boolean(opts.isSuperAdmin)
-  }
-
-  const allowed = allowedDashboards({
-    role,
-    isSuperAdmin: opts.isSuperAdmin,
-    dashboardAccess: opts.dashboardAccess,
-  })
-  return allowed.includes(target)
+  return pathname === '/admin' || pathname.startsWith('/admin/')
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // When Supabase isn't connected yet, skip all auth checks and let pages render.
   if (!isSupabaseConfigured()) return NextResponse.next()
 
   let supabaseResponse = NextResponse.next({
@@ -69,7 +26,7 @@ export async function middleware(req: NextRequest) {
 
   const supabase = createServerClient(
     normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!),
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -79,18 +36,18 @@ export async function middleware(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request: req })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           )
         },
       },
-    }
+    },
   )
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!isProtectedPath(pathname) && pathname !== '/pending') {
+  if (!isProtectedPath(pathname)) {
     return supabaseResponse
   }
 
@@ -104,84 +61,64 @@ export async function middleware(req: NextRequest) {
 
   if (!user) {
     const url = req.nextUrl.clone()
-    const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
-    url.pathname = isAdminPath ? '/admin/login' : '/login'
+    url.pathname = '/admin/login'
     url.searchParams.set('next', pathname)
     return redirectWithCookies(url)
   }
 
-  const role = isAppRole(user.app_metadata?.role) ? user.app_metadata.role : null
-  const status = isMemberStatus(user.app_metadata?.status)
+  const staffRole = isStaffRole(user.app_metadata?.staffRole)
+    ? user.app_metadata.staffRole
+    : isStaffRole(user.app_metadata?.role)
+      ? mapLegacyRole(user.app_metadata.role)
+      : null
+  const status = isUserStatus(user.app_metadata?.status)
     ? user.app_metadata.status
     : null
   const isSuperAdmin = Boolean(user.app_metadata?.isSuperAdmin)
-  const dashboardAccess = parseDashboardAccess(user.app_metadata?.dashboardAccess)
 
-  if (!role || !status) {
+  if (!staffRole && !isSuperAdmin) {
     const url = req.nextUrl.clone()
-    const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/')
-    url.pathname = isAdminPath ? '/admin/login' : '/login'
+    url.pathname = '/admin/login'
     url.searchParams.set('next', pathname)
     return redirectWithCookies(url)
   }
 
-  if (status === 'PENDING') {
-    if (pathname === '/profile' || pathname.startsWith('/profile/')) {
-      return supabaseResponse
-    }
-    if (pathname !== '/pending') {
-      const url = req.nextUrl.clone()
-      url.pathname = '/pending'
-      return redirectWithCookies(url)
-    }
-    return supabaseResponse
-  }
-
-  if (status === 'SUSPENDED') {
+  if (status === 'SUSPENDED' || status === 'INACTIVE') {
     const url = req.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('error', 'suspended')
+    url.pathname = '/admin/login'
+    url.searchParams.set('error', status === 'SUSPENDED' ? 'suspended' : 'inactive')
     await supabase.auth.signOut()
     return redirectWithCookies(url)
   }
 
-  if (status !== 'ACTIVE') {
+  if (status && status !== 'ACTIVE') {
     const url = req.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/admin/login'
     url.searchParams.set('error', 'inactive')
     await supabase.auth.signOut()
-    return redirectWithCookies(url)
-  }
-
-  if (pathname === '/pending') {
-    const url = req.nextUrl.clone()
-    url.pathname = ROLE_HOME[role]
-    return redirectWithCookies(url)
-  }
-
-  // Shared profile, personal contributions & announcements for every authenticated role
-  if (
-    pathname === '/profile' ||
-    pathname.startsWith('/profile/') ||
-    pathname === '/contributions' ||
-    pathname.startsWith('/contributions/') ||
-    pathname === '/announcements' ||
-    pathname.startsWith('/announcements/')
-  ) {
-    return supabaseResponse
-  }
-
-  if (!allowedPath(role, pathname, { isSuperAdmin, dashboardAccess })) {
-    const url = req.nextUrl.clone()
-    url.pathname = ROLE_HOME[role]
     return redirectWithCookies(url)
   }
 
   return supabaseResponse
 }
 
+function mapLegacyRole(role: string): 'DIRECTOR' | 'CLERK' | 'YARD' | 'ACCOUNTANT' | null {
+  switch (role) {
+    case 'ADMIN':
+    case 'EXECUTIVE':
+      return 'DIRECTOR'
+    case 'SECRETARY':
+      return 'CLERK'
+    case 'ORGANIZER':
+    case 'MEMBER':
+      return 'YARD'
+    case 'TREASURER':
+      return 'ACCOUNTANT'
+    default:
+      return null
+  }
+}
+
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

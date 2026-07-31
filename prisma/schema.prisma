@@ -8,33 +8,18 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum Role {
-  ADMIN
-  EXECUTIVE
-  TREASURER
-  SECRETARY
-  ORGANIZER
-  MEMBER
-}
-
-enum MemberStatus {
-  PENDING
+enum UserStatus {
   ACTIVE
   INACTIVE
   SUSPENDED
 }
 
-enum ProjectStatus {
-  UPCOMING
-  ONGOING
-  COMPLETED
-}
-
-enum WelfareStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  PAID
+/// Temporary staff labels until Stage 2 Role table + permissions
+enum StaffRole {
+  DIRECTOR
+  CLERK
+  YARD
+  ACCOUNTANT
 }
 
 enum PaymentMethod {
@@ -42,11 +27,6 @@ enum PaymentMethod {
   MPESA
   BANK
   OTHER
-}
-
-enum MeetingStatus {
-  DRAFT
-  FINAL
 }
 
 enum ClientStatus {
@@ -130,199 +110,37 @@ enum CommissionType {
   FIXED
 }
 
-model User {
-  id              String       @id @default(cuid())
-  authUserId      String?      @unique
-  email           String       @unique
-  fullName        String
-  phone           String?
-  location        String?
-  role            Role         @default(MEMBER)
-  status          MemberStatus @default(PENDING)
-  isSuperAdmin    Boolean      @default(false)
-  dashboardAccess Role[]       @default([])
-  avatarUrl       String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+enum BroadcastAudience {
+  CLIENTS
+  OWNERS
+  STAFF
+  CUSTOM
+}
 
-  contributions        Contribution[]
-  welfareRequests      WelfareRequest[]
+model User {
+  id           String     @id @default(cuid())
+  authUserId   String?    @unique
+  email        String     @unique
+  fullName     String
+  phone        String?
+  staffRole    StaffRole  @default(CLERK)
+  status       UserStatus @default(ACTIVE)
+  isSuperAdmin Boolean    @default(false)
+  avatarUrl    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
   auditLogs            AuditLog[]
-  announcements        Announcement[]
-  announcementReceipts AnnouncementReceipt[]
-  documents            Document[]
-  meetings             Meeting[]             @relation("MeetingRecorder")
-  galleryPhotos        GalleryPhoto[]
-  emailLogs            EmailLog[]
+  attachmentsUploaded  Attachment[]
+  broadcastsCreated    Broadcast[]
 
   @@map("users")
 }
 
-model Contribution {
-  id            String        @id @default(cuid())
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount        Float
-  description   String?
-  category      String?
-  paymentMethod PaymentMethod @default(CASH)
-  receivedBy    String?
-  statementRef  String?
-  paidAt        DateTime      @default(now())
-  mpesaRef      String?
-  createdAt     DateTime      @default(now())
-
-  @@index([userId])
-  @@index([paidAt])
-  @@map("contributions")
-}
-
-model WelfareRequest {
-  id          String        @id @default(cuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  description String
-  amount      Float?
-  status      WelfareStatus @default(PENDING)
-  reviewNote  String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@map("welfare_requests")
-}
-
-model Project {
-  id          String        @id @default(cuid())
-  title       String
-  description String
-  status      ProjectStatus @default(UPCOMING)
-  imageUrl    String?
-  progress    Int           @default(0)
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  @@map("projects")
-}
-
-model GalleryPhoto {
-  id         String    @id @default(cuid())
-  url        String
-  caption    String?
-  category   String?
-  isPublic   Boolean   @default(false)
-  approvedAt DateTime?
-  uploadedBy String?
-  uploader   User?     @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
-  uploadedAt DateTime  @default(now())
-
-  @@map("gallery_photos")
-}
-
-model Announcement {
-  id          String    @id @default(cuid())
-  title       String
-  content     String
-  imageUrl    String?
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  broadcast   Boolean   @default(true)
-  publishedAt DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  emailSentAt DateTime?
-  expiresAt   DateTime? // auto-set to 48h after publish; shown as reminder badge to author
-
-  receipts AnnouncementReceipt[]
-
-  @@map("announcements")
-}
-
-model AnnouncementReceipt {
-  id             String       @id @default(cuid())
-  announcementId String
-  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readAt         DateTime?
-  createdAt      DateTime     @default(now())
-
-  @@unique([announcementId, userId])
-  @@map("announcement_receipts")
-}
-
-model Event {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  location    String?
-  startsAt    DateTime
-  endsAt      DateTime?
-  imageUrl    String?
-  isPublic    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-
-  @@map("events")
-}
-
-model Document {
-  id         String   @id @default(cuid())
-  title      String
-  fileUrl    String
-  category   String?
-  uploadedBy String
-  uploader   User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
-  uploadedAt DateTime @default(now())
-
-  publishedMeeting Meeting?
-
-  @@map("documents")
-}
-
-model Meeting {
-  id                  String        @id @default(cuid())
-  title               String
-  agenda              String?
-  minutes             String?
-  opening             String?
-  attendees           String? // members present
-  membersAbsent       String? // absent without apology
-  membersApology      String? // absent with apology
-  aob                 String? // any other business
-  nextMeetingAt       DateTime?
-  status              MeetingStatus @default(DRAFT)
-  heldAt              DateTime
-  attendance          Int           @default(0)
-  recordedBy          String
-  recorder            User          @relation("MeetingRecorder", fields: [recordedBy], references: [id], onDelete: Cascade)
-  publishedDocumentId String?       @unique
-  publishedDocument   Document?     @relation(fields: [publishedDocumentId], references: [id], onDelete: SetNull)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-
-  @@map("meetings")
-}
-
-model EmailLog {
+model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  toEmail   String
-  subject   String
-  template  String?
-  status    String   @default("sent")
-  meta      Json?
-  createdAt DateTime @default(now())
-
-  @@map("email_logs")
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action    String
   entity    String?
   entityId  String?
@@ -335,6 +153,40 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Generic file attachment for clients, owners, condition checks, etc.
+model Attachment {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  kind       String
+  bucket     String
+  path       String
+  mimeType   String?
+  uploadedBy String?
+  uploader   User?    @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  uploadedAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+/// Bulk / broadcast campaign parent; delivery rows live in MessageLog
+model Broadcast {
+  id          String            @id @default(cuid())
+  title       String
+  body        String
+  audience    BroadcastAudience @default(CLIENTS)
+  channel     MessageChannel    @default(SMS)
+  createdBy   String?
+  creator     User?             @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  scheduledFor DateTime?
+  sentAt      DateTime?
+
+  @@index([createdAt])
+  @@map("broadcasts")
+}
+
 model CarOwner {
   id                 String         @id @default(cuid())
   fullName           String
@@ -344,9 +196,6 @@ model CarOwner {
   kraPin             String?
   bankDetails        String?
   mpesaNumber        String?
-  idCopyUrl          String?
-  logbookUrl         String?
-  agreementUrl       String?
   nextOfKin          String?
   commissionType     CommissionType @default(PERCENTAGE)
   commissionValue    Float          @default(0)
@@ -392,9 +241,7 @@ model CarClient {
   phone           String       @unique
   email           String?
   idOrPassportNo  String       @unique
-  idCopyUrl       String?
   licenceNo       String
-  licenceCopyUrl  String?
   licenceExpiry   DateTime?
   physicalAddress String?
   nextOfKin       String?
@@ -475,7 +322,6 @@ model ConditionCheck {
   fuelLevel    Int?
   odometer     Int?
   componentsOk Boolean        @default(true)
-  photos       String[]       @default([])
   checkedBy    String?
   createdAt    DateTime       @default(now())
 
@@ -601,12 +447,14 @@ model MessageLog {
   status        MessageStatus  @default(QUEUED)
   providerRef   String?
   error         String?
+  broadcastId   String?
   scheduledFor  DateTime?
   sentAt        DateTime?
   createdAt     DateTime       @default(now())
 
   @@index([status, scheduledFor])
   @@index([recipientType, recipientId])
+  @@index([broadcastId])
   @@map("message_logs")
 }
 

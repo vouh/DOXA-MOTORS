@@ -9,7 +9,7 @@ Car hire management data stored in Postgres: tables, columns, relationships, and
 App writes go through Prisma (service connection; bypasses RLS). Browser Supabase clients are RLS-scoped — see [`supabase/policies.sql`](../supabase/policies.sql).
 
 **How features use this data:** root [README](../README.md).  
-**How to connect and seed:** [BACKEND_SETUP.md](./BACKEND_SETUP.md).
+**How to connect and seed:** [ARCHITECTURE.md](./ARCHITECTURE.md) Part B.
 
 ---
 

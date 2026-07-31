@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { ROLE_HOME } from '@/lib/auth/types'
+import { ADMIN_HOME } from '@/lib/auth/types'
 import { syncUserMetadata } from '@/lib/auth/session'
 import { toAuthUser } from '@/lib/auth/helpers'
 
@@ -33,11 +33,8 @@ export async function POST(req: Request) {
       const message = error?.message?.toLowerCase() ?? ''
       if (message.includes('email not confirmed')) {
         return NextResponse.json(
-          {
-            error:
-              'Your email address has not been verified yet. Please check your inbox for the verification link.',
-          },
-          { status: 401 }
+          { error: 'Your email address has not been verified yet.' },
+          { status: 401 },
         )
       }
       const knownProfile = await prisma.user.findUnique({
@@ -46,17 +43,11 @@ export async function POST(req: Request) {
       })
       if (!knownProfile) {
         return NextResponse.json(
-          {
-            error:
-              'We could not find an account with this email address. Please check the spelling or create an account first.',
-          },
-          { status: 401 }
+          { error: 'No staff account found for this email. Ask a Director to invite you.' },
+          { status: 401 },
         )
       }
-      return NextResponse.json(
-        { error: 'Incorrect password. Please try again.' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Incorrect password. Please try again.' }, { status: 401 })
     }
 
     let profile = await prisma.user.findFirst({
@@ -68,8 +59,8 @@ export async function POST(req: Request) {
     if (!profile) {
       await supabase.auth.signOut()
       return NextResponse.json(
-        { error: 'No member profile found. Please register first.' },
-        { status: 403 }
+        { error: 'No staff profile found. Ask a Director to invite you.' },
+        { status: 403 },
       )
     }
 
@@ -82,30 +73,19 @@ export async function POST(req: Request) {
 
     await syncUserMetadata(profile)
 
-    if (profile.status === 'PENDING') {
-      return NextResponse.json({
-        user: toAuthUser(profile),
-        redirectTo: '/pending',
-        status: 'PENDING',
-      })
-    }
-
     if (profile.status === 'SUSPENDED') {
       await supabase.auth.signOut()
       return NextResponse.json(
-        {
-          error:
-            'Your account has been temporarily suspended. Please contact the group administrator.',
-        },
-        { status: 403 }
+        { error: 'Your account has been suspended. Contact a Director.' },
+        { status: 403 },
       )
     }
 
     if (profile.status !== 'ACTIVE') {
       await supabase.auth.signOut()
       return NextResponse.json(
-        { error: 'Your account is not active. Please contact the group administrator.' },
-        { status: 403 }
+        { error: 'Your account is not active. Contact a Director.' },
+        { status: 403 },
       )
     }
 
@@ -114,9 +94,8 @@ export async function POST(req: Request) {
       user: {
         ...user,
         isSuperAdmin: profile.isSuperAdmin,
-        dashboardAccess: profile.dashboardAccess,
       },
-      redirectTo: ROLE_HOME[user.role],
+      redirectTo: ADMIN_HOME,
       status: profile.status,
     })
   } catch (err) {

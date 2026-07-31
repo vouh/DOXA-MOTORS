@@ -1,44 +1,35 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { type FormEvent, useEffect, useState } from 'react'
 import BrandLogo from '@/components/brand/BrandLogo'
 import DevAccountsDropdown from '@/components/auth/DevAccountsDropdown'
-import { homeForRole, loginRequest, logoutRequest, meRequest, registerRequest, type AuthUser } from '@/lib/auth/client'
+import { ADMIN_HOME, loginRequest, logoutRequest, meRequest, type AuthUser } from '@/lib/auth/client'
 
 type Props = {
   title?: string
-  allowRegister?: boolean
-  admin?: boolean
 }
 
-export default function LoginForm({ title = 'Member Login', allowRegister = true, admin = false }: Props) {
+export default function LoginForm({ title = 'Staff Login' }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [mode, setMode] = useState<'signin' | 'register'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [devOpen, setDevOpen] = useState(false)
 
   useEffect(() => {
-    if (admin) {
-      setEmail('superadmin@doxacarhire.com')
-      setPassword('SuperAdmin@2026!')
-    }
-  }, [admin])
+    setEmail('superadmin@doxacarhire.com')
+    setPassword('SuperAdmin@2026!')
+  }, [])
 
   useEffect(() => {
     meRequest().then((user: AuthUser | null) => {
       if (user) {
         const next = searchParams.get('next')
-        router.replace(next && next.startsWith('/') ? next : homeForRole(user.role))
+        router.replace(next && next.startsWith('/') ? next : ADMIN_HOME)
       }
     })
   }, [router, searchParams])
@@ -46,237 +37,103 @@ export default function LoginForm({ title = 'Member Login', allowRegister = true
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'suspended') {
-      setError(
-        'Your account has been temporarily suspended. Please contact the group administrator.'
-      )
+      setError('Your account has been suspended. Contact a Director.')
     } else if (err === 'inactive') {
-      setError('Your account is not active. Contact an administrator.')
+      setError('Your account is not active. Contact a Director.')
+    } else if (err === 'not_invited') {
+      setError('No staff invite for this account. Ask a Director to invite you first.')
     } else if (err === 'oauth') {
-      setError('Google sign-in failed. Please try again or use email and password.')
+      setError('Sign-in failed. Try again or use email and password.')
     }
   }, [searchParams])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
-
-    // Supabase not yet configured — bypass auth and go straight to admin dashboard
-    if (admin) {
-      router.push('/admin')
-      return
-    }
-
-    if (mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
     setLoading(true)
     try {
-      if (mode === 'register') {
-        const { redirectTo } = await registerRequest({ email, password, fullName, phone })
-        router.push(redirectTo || '/pending')
-        router.refresh()
-        return
-      }
-      const { user, redirectTo, status } = await loginRequest(email, password)
-      if (status === 'PENDING') {
-        if (admin) {
-          await logoutRequest()
-          setError('Your account is still waiting for approval by an administrator.')
-          return
-        }
-        router.push('/pending')
+      const { redirectTo, status } = await loginRequest(email, password)
+      if (status && status !== 'ACTIVE') {
+        await logoutRequest()
+        setError('Your account is not active.')
         return
       }
       const next = searchParams.get('next')
-      if (next && next.startsWith('/')) {
-        router.push(next)
-      } else {
-        router.push(redirectTo || homeForRole(user.role))
-      }
+      router.replace(next && next.startsWith('/') ? next : redirectTo || ADMIN_HOME)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
     }
   }
 
-  const inputCls = `w-full px-md py-[10px] bg-surface border ${admin ? 'border-primary' : 'border-secondary-container'} rounded-lg text-on-surface font-body-md text-[14px]`
-  const btnCls   = admin ? 'bg-primary-container' : 'bg-secondary-container'
-
   return (
-    <div className="fixed inset-0 z-[200] bg-primary flex items-center justify-center min-h-screen px-md overflow-y-auto py-xl">
-      <div className="w-full max-w-[420px]">
-        <div className="flex justify-center">
-          <div className="mb-[-30px] relative z-10">
-            <BrandLogo variant="login" />
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+      <div className="w-full max-w-md rounded-2xl border border-outline-variant bg-white shadow-lg p-6 md:p-8">
+        <div className="flex flex-col items-center gap-2 mb-6">
+          <BrandLogo variant="compact" />
+          <h1 className="font-h3 text-xl font-bold text-on-surface">{title}</h1>
+          <p className="text-sm text-on-surface-variant text-center">Doxa Car Hire — staff access</p>
         </div>
-        <div className="bg-surface rounded-2xl pt-[52px] pb-lg px-lg shadow-2xl border border-white/10">
-          <div className="text-center mb-lg">
-            <h1 className={`font-h3 text-h3 ${admin ? 'text-primary-container' : 'text-secondary-container'}`}>{title}</h1>
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="relative">
+            <label className="block text-xs font-semibold text-on-surface-variant mb-1">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setDevOpen(true)}
+              onBlur={() => setTimeout(() => setDevOpen(false), 150)}
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm"
+              autoComplete="username"
+            />
+            <DevAccountsDropdown
+              open={devOpen}
+              onPick={(e, p) => {
+                setEmail(e)
+                setPassword(p)
+                setDevOpen(false)
+              }}
+            />
           </div>
-          <form onSubmit={onSubmit} className="flex flex-col gap-md">
-            {mode === 'register' && (
-              <>
-                <div>
-                  <label className="block font-label-bold text-label-bold text-on-surface-variant mb-xs text-[13px]">
-                    Full name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    autoComplete="name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="block font-label-bold text-label-bold text-on-surface-variant mb-xs text-[13px]">
-                    Phone (optional)
-                  </label>
-                  <input
-                    type="tel"
-                    name="tel"
-                    autoComplete="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-              </>
-            )}
-            <div>
-              <label className="block font-label-bold text-label-bold text-on-surface-variant mb-xs text-[13px]">
-                Email Address
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setDevOpen(true)}
-                  onBlur={() => setDevOpen(false)}
-                  required
-                  className={inputCls}
-                />
-                {mode === 'signin' && !admin && (
-                  <DevAccountsDropdown
-                    open={devOpen}
-                    onPick={(devEmail, devPassword) => {
-                      setEmail(devEmail)
-                      setPassword(devPassword)
-                      setDevOpen(false)
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block font-label-bold text-label-bold text-on-surface-variant mb-xs text-[13px]">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  name="password"
-                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={mode === 'register' ? 8 : 1}
-                  className={`${inputCls} pr-[44px]`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  className="absolute right-sm top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors p-xs"
-                >
-                  <span className="material-symbols-outlined text-[20px]">
-                    {showPw ? 'visibility_off' : 'visibility'}
-                  </span>
-                </button>
-              </div>
-            </div>
-            {mode === 'register' && (
-              <div>
-                <label className="block font-label-bold text-label-bold text-on-surface-variant mb-xs text-[13px]">
-                  Confirm password
-                </label>
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  name="confirm-password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className={inputCls}
-                />
-              </div>
-            )}
-            {error && (
-              <p className="text-error text-center font-caption text-caption text-[12px]">{error}</p>
-            )}
-            <div className="flex flex-col items-center gap-3 mt-xs">
+          <div>
+            <label className="block text-xs font-semibold text-on-surface-variant mb-1">Password</label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm pr-10"
+                autoComplete="current-password"
+              />
               <button
-                type="submit"
-                disabled={loading}
-                className={`${btnCls} text-on-primary font-label-bold text-label-bold py-[11px] px-xl rounded-full hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-sm min-h-[44px] shadow-md disabled:opacity-60 w-full`}
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant"
+                onClick={() => setShowPw((v) => !v)}
               >
-                <span className="material-symbols-outlined text-[17px]">lock_open</span>
-                {loading
-                  ? mode === 'register'
-                    ? 'Creating…'
-                    : 'Signing in…'
-                  : mode === 'register'
-                    ? 'Register'
-                    : 'Sign In'}
+                {showPw ? 'Hide' : 'Show'}
               </button>
             </div>
-          </form>
+          </div>
 
-          {allowRegister && (
-            <p className="text-center mt-md text-[13px] text-on-surface-variant">
-              {mode === 'signin' ? (
-                <>
-                  New member?{' '}
-                  <button
-                    type="button"
-                    className="text-primary font-semibold"
-                    onClick={() => {
-                      setMode('register')
-                      setConfirmPassword('')
-                      setError('')
-                    }}
-                  >
-                    Register
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already registered?{' '}
-                  <button
-                    type="button"
-                    className="text-primary font-semibold"
-                    onClick={() => {
-                      setMode('signin')
-                      setConfirmPassword('')
-                      setError('')
-                    }}
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2" role="alert">
+              {error}
             </p>
           )}
-        </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-primary text-white py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+          >
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
       </div>
     </div>
   )

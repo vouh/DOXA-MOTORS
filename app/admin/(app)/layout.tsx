@@ -1,9 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import BrandLogo from '@/components/brand/BrandLogo'
-import { NAV, NOTIFS } from '@/lib/admin/data'
+import { NAV } from '@/lib/admin/data'
+import type { StaffRole } from '@/lib/auth/types'
+
+type SessionUser = {
+  fullName: string
+  initials: string
+  staffRole: StaffRole
+  isSuperAdmin: boolean
+}
+
+const ROLE_LABEL: Record<StaffRole, string> = {
+  DIRECTOR: 'Director',
+  CLERK: 'Office Clerk',
+  YARD: 'Yard Staff',
+  ACCOUNTANT: 'Accountant',
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
@@ -11,9 +26,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [collapsed,  setCollapsed]  = useState(false)
   const [isDark,     setIsDark]     = useState(false)
-  const [showNotifs, setShowNotifs] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const notifRef = useRef<HTMLDivElement>(null)
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null)
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('dashSidebarCollapsed') === '1')
@@ -33,18 +47,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setShowNotifs(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
   // Close mobile menu on route change
   useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSessionUser() {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' })
+        if (!response.ok) return
+
+        const payload = (await response.json()) as { user?: SessionUser | null }
+        if (!cancelled) setSessionUser(payload.user ?? null)
+      } catch {
+        // Keep layout usable even if the identity call fails.
+      }
+    }
+
+    loadSessionUser()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const toggleCollapse = () => {
     setCollapsed((c) => {
@@ -65,6 +90,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
 
   const activeLabel = NAV.find((n) => isActive(n.href))?.label ?? 'Dashboard'
+  const displayName = sessionUser?.fullName || 'Staff'
+  const displayRole = sessionUser?.isSuperAdmin
+    ? 'Super Admin'
+    : sessionUser
+      ? ROLE_LABEL[sessionUser.staffRole]
+      : 'Doxa Car Hire'
+  const displayInitials = sessionUser?.initials || 'DX'
 
   const now    = new Date()
   const hour   = now.getHours()
@@ -127,11 +159,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!collapsed && (
             <div className="flex items-center gap-3 px-1 mb-3">
               <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
-                SA
+                {displayInitials}
               </div>
               <div className="min-w-0">
-                <p className="text-white text-[12px] font-semibold truncate">Super Admin</p>
-                <p className="text-white/40 text-[10px] truncate">superadmin@doxacarhire.com</p>
+                <p className="text-white text-[12px] font-semibold truncate">{displayName}</p>
+                <p className="text-white/40 text-[10px] truncate">{displayRole}</p>
               </div>
             </div>
           )}
@@ -174,7 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <p className="font-label-bold text-[14px] font-semibold text-on-surface dark:text-blue-50">
                 {activeLabel}
               </p>
-              <p className="text-[11px] text-on-surface-variant dark:text-blue-200/40">{greet}, Super Admin</p>
+              <p className="text-[11px] text-on-surface-variant dark:text-blue-200/40">{greet}</p>
             </div>
           </div>
 
@@ -195,59 +227,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
 
             {/* Notification bell */}
-            <div className="relative" ref={notifRef}>
+            <div className="relative">
               <button
-                onClick={() => setShowNotifs((v) => !v)}
+                onClick={() => router.push('/admin/notifications')}
                 title="Notifications"
                 className="relative text-on-surface-variant dark:text-blue-200/60 hover:text-primary dark:hover:text-blue-300 transition-colors"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>notifications</span>
-                <span className="absolute -top-1 -right-1 bg-secondary-container text-white text-[9px] font-bold px-1 rounded-full leading-[14px] min-w-[14px] text-center">
-                  {NOTIFS.length}
-                </span>
               </button>
-
-              {showNotifs && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#0d1729] rounded-xl shadow-xl border border-outline-variant dark:border-[#1a2d4f] z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-outline-variant dark:border-[#1a2d4f] flex items-center justify-between">
-                    <p className="font-semibold text-[13px] text-on-surface dark:text-blue-50">Notifications</p>
-                    <button onClick={() => setShowNotifs(false)} className="text-on-surface-variant hover:text-on-surface">
-                      <span className="material-symbols-outlined text-[16px]">close</span>
-                    </button>
-                  </div>
-                  <ul className="divide-y divide-outline-variant dark:divide-[#1a2d4f] max-h-64 overflow-y-auto">
-                    {NOTIFS.map((n, i) => (
-                      <li key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-container dark:hover:bg-[#111f36] cursor-pointer">
-                        <span className={`material-symbols-outlined icon-fill text-[18px] mt-0.5 shrink-0 ${n.red ? 'text-secondary-container dark:text-red-400' : 'text-primary dark:text-blue-400'}`}>
-                          {n.icon}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] text-on-surface dark:text-blue-50 leading-snug">{n.text}</p>
-                          <p className="text-[11px] text-on-surface-variant dark:text-blue-200/40 mt-0.5">{n.time}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="px-4 py-2 border-t border-outline-variant dark:border-[#1a2d4f]">
-                    <button
-                      onClick={() => { router.push('/admin/notifications'); setShowNotifs(false) }}
-                      className="text-[12px] text-primary dark:text-blue-400 hover:underline font-medium"
-                    >
-                      View all →
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* User */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="text-right">
-                <p className="text-[12px] font-semibold text-on-surface dark:text-blue-50 leading-tight">Super Admin</p>
-                <p className="text-[10px] text-on-surface-variant dark:text-blue-200/40">Administrator</p>
+                <p className="text-[12px] font-semibold text-on-surface dark:text-blue-50 leading-tight">{displayName}</p>
+                <p className="text-[10px] text-on-surface-variant dark:text-blue-200/40">{displayRole}</p>
               </div>
               <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-[11px] border-2 border-primary/20">
-                SA
+                {displayInitials}
               </div>
             </div>
 

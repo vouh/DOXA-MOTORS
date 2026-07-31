@@ -1,41 +1,32 @@
-import type { MemberStatus, Role, User } from '@prisma/client'
-import type { AuthUser } from './types'
+import type { StaffRole, UserStatus } from './types'
+import type { User } from '@prisma/client'
 
-export function initialsFromName(fullName: string) {
-  return fullName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('') || '?'
+const STAFF_ROLES: StaffRole[] = ['DIRECTOR', 'CLERK', 'YARD', 'ACCOUNTANT']
+const STATUSES: UserStatus[] = ['ACTIVE', 'INACTIVE', 'SUSPENDED']
+
+export function isStaffRole(value: unknown): value is StaffRole {
+  return typeof value === 'string' && STAFF_ROLES.includes(value as StaffRole)
 }
 
-export function toAuthUser(user: Pick<User, 'id' | 'email' | 'fullName' | 'role'>): AuthUser {
+export function isUserStatus(value: unknown): value is UserStatus {
+  return typeof value === 'string' && STATUSES.includes(value as UserStatus)
+}
+
+export function toAuthUser(user: User) {
+  const fullName = user.fullName || user.email
   return {
     id: user.id,
     email: user.email,
-    fullName: user.fullName,
-    role: user.role,
-    initials: initialsFromName(user.fullName),
+    fullName,
+    initials: fullName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase(),
+    staffRole: user.staffRole as StaffRole,
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    status: user.status as UserStatus,
   }
-}
-
-export function isAppRole(value: unknown): value is Role {
-  return (
-    value === 'ADMIN' ||
-    value === 'EXECUTIVE' ||
-    value === 'TREASURER' ||
-    value === 'SECRETARY' ||
-    value === 'ORGANIZER' ||
-    value === 'MEMBER'
-  )
-}
-
-export function isMemberStatus(value: unknown): value is MemberStatus {
-  return (
-    value === 'PENDING' ||
-    value === 'ACTIVE' ||
-    value === 'INACTIVE' ||
-    value === 'SUSPENDED'
-  )
 }

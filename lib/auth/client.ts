@@ -1,7 +1,7 @@
-import { ROLE_HOME, type AuthUser, type Role } from './types'
+import { ADMIN_HOME, type AuthUser, type StaffRole } from './types'
 
-export { ROLE_HOME }
-export type { AuthUser, Role }
+export { ADMIN_HOME }
+export type { AuthUser, StaffRole }
 
 export async function loginRequest(email: string, password: string) {
   const res = await fetch('/api/auth/login', {
@@ -16,29 +16,11 @@ export async function loginRequest(email: string, password: string) {
   return data as { user: AuthUser; redirectTo: string; status?: string }
 }
 
-export async function registerRequest(input: {
-  email: string
-  password: string
-  fullName: string
-  phone?: string
-}) {
-  const res = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(data.error || 'Registration failed')
-  }
-  return data as { user: AuthUser; redirectTo: string; status?: string }
-}
-
 export async function logoutRequest() {
   try {
     await fetch('/api/auth/logout', { method: 'POST' })
   } catch {
-    // Network hiccup — callers still redirect, middleware will re-check auth.
+    // Network hiccup — callers still redirect
   }
 }
 
@@ -49,6 +31,6 @@ export async function meRequest(): Promise<AuthUser | null> {
   return data.user ?? null
 }
 
-export function homeForRole(role: Role) {
-  return ROLE_HOME[role]
+export function homeForRole(_role?: StaffRole) {
+  return ADMIN_HOME
 }

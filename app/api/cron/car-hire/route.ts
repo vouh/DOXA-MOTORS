@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  if (process.env.CRON_SECRET && request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -20,15 +21,27 @@ export async function GET(request: NextRequest) {
     include: { client: true, vehicle: true },
   })
   for (const booking of ending) {
+    // Dedupe per booking (not per client) — one client can have multiple hires ending soon.
+    const bookingRef = `booking:${booking.id}`
     const exists = await prisma.messageLog.findFirst({
-      where: { recipientId: booking.clientId, template: 'hire_ending_soon', createdAt: { gte: new Date(now.getTime() - 12 * 60 * 60 * 1000) } },
+      where: {
+        recipientId: booking.clientId,
+        template: 'hire_ending_soon',
+        subject: bookingRef,
+        createdAt: { gte: new Date(now.getTime() - 12 * 60 * 60 * 1000) },
+      },
     })
     if (!exists) {
       await prisma.messageLog.create({
         data: {
-          recipientType: 'CLIENT', recipientId: booking.clientId, recipientName: booking.client.fullName,
-          destination: booking.client.email || booking.client.phone, channel: booking.client.email ? 'EMAIL' : 'SMS',
-          template: 'hire_ending_soon', body: `${booking.vehicle.regNumber} is due back at ${booking.expectedReturnAt.toLocaleString()}.`,
+          recipientType: 'CLIENT',
+          recipientId: booking.clientId,
+          recipientName: booking.client.fullName,
+          destination: booking.client.email || booking.client.phone,
+          channel: booking.client.email ? 'EMAIL' : 'SMS',
+          template: 'hire_ending_soon',
+          subject: bookingRef,
+          body: `${booking.vehicle.regNumber} is due back at ${booking.expectedReturnAt.toLocaleString()}.`,
         },
       })
       reminders++

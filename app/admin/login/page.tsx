@@ -4,14 +4,14 @@ import LoginForm from '@/components/auth/LoginForm'
 
 export const metadata: Metadata = {
   title: {
-    absolute: 'Admin Login — Doxa Car Hire',
+    absolute: 'Staff Login — Doxa Car Hire',
   },
 }
 
 export default function AdminLoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-primary" />}>
-      <LoginForm title="Admin Login" allowRegister={false} admin />
+      <LoginForm title="Staff Login" />
     </Suspense>
   )
 }

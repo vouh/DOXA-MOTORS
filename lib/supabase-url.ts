@@ -4,6 +4,15 @@ export function normalizeSupabaseUrl(url: string | undefined) {
   return url.replace(/\/rest\/v1\/?$/i, '').replace(/\/$/, '')
 }
 
+/** Service role / secret key — supports legacy and new Supabase env names. */
+export function getSupabaseServiceRoleKey() {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    ''
+  )
+}
+
 /** Returns false when running with placeholder/missing credentials. */
 export function isSupabaseConfigured() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
