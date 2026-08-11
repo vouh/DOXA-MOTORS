@@ -301,49 +301,57 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                       />
                     </label>
                     <label className="block">
-                      <span className={labelCls}>Employer</span>
+                      <span className={labelCls}>Employer *</span>
                       <input
                         className={field}
                         name="employer"
+                        required
                         defaultValue={client.employer ?? ''}
                         maxLength={120}
+                        minLength={2}
                         title="Letters, numbers, and basic punctuation only"
                         onInput={onOrgInput()}
                       />
                     </label>
                     <label className="block sm:col-span-2">
-                      <span className={labelCls}>Physical address</span>
+                      <span className={labelCls}>Physical address *</span>
                       <input
                         className={field}
                         name="physicalAddress"
+                        required
                         defaultValue={client.physicalAddress ?? ''}
                         maxLength={200}
+                        minLength={3}
                         title="Letters, numbers, and common address punctuation only"
                         onInput={onAddressInput()}
                       />
                     </label>
                     <label className="block">
-                      <span className={labelCls}>Next of kin</span>
+                      <span className={labelCls}>Next of kin *</span>
                       <input
                         className={field}
                         name="nextOfKin"
+                        required
                         defaultValue={client.nextOfKin ?? ''}
                         maxLength={100}
+                        minLength={2}
                         title="Letters and spaces only"
                         onInput={onNameInput()}
                       />
                     </label>
                     <label className="block">
-                      <span className={labelCls}>Kin contact</span>
+                      <span className={labelCls}>Kin contact *</span>
                       <input
                         className={field}
                         name="secondContact"
+                        required
                         defaultValue={client.secondContact ? digitsOnly(client.secondContact) : ''}
                         inputMode="numeric"
                         autoComplete="tel"
                         pattern="\d{9,12}"
                         maxLength={12}
-                        title="Optional — 9–12 digits only"
+                        minLength={9}
+                        title="9–12 digits only"
                         placeholder="07XXXXXXXX"
                         onInput={onDigitsInput()}
                       />

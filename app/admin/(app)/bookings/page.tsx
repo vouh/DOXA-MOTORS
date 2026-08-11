@@ -19,7 +19,12 @@ const field =
 const cta =
   'rounded-full bg-gradient-to-r from-primary to-primary-container px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(12,92,240,0.28)]'
 
-export default async function BookingsPage() {
+export default async function BookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string }>
+}) {
+  const { clientId: preselectClientId = '' } = await searchParams
   const profile = await getSessionProfile()
   const canExport = profile
     ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.REPORT_EXPORT))
@@ -36,6 +41,7 @@ export default async function BookingsPage() {
     ]),
   )
   const [clients, vehicles, bookings, rule] = loaded.data ?? [[], [], [], null]
+  const openNewBooking = Boolean(preselectClientId)
   return (
     <PageShell>
       <SectionHead
@@ -45,7 +51,7 @@ export default async function BookingsPage() {
       {loaded.error ? <ServiceAlert message={loaded.error} /> : null}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="overflow-hidden">
-          <details>
+          <details open={openNewBooking || undefined}>
             <summary className="cursor-pointer list-none border-b border-outline-variant px-5 py-4 font-semibold text-primary [&::-webkit-details-marker]:hidden">
               New booking
             </summary>
@@ -56,7 +62,7 @@ export default async function BookingsPage() {
               }}
               className="mt-1 grid gap-4 px-5 py-5 sm:grid-cols-2"
             >
-              <select className={field} name="clientId" required>
+              <select className={field} name="clientId" required defaultValue={preselectClientId}>
                 <option value="">Select client *</option>
                 {clients.map((c) => (
                   <option value={c.id} key={c.id}>

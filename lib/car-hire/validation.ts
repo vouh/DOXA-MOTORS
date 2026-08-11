@@ -71,25 +71,22 @@ export const clientSchema = z.object({
   physicalAddress: z
     .string()
     .trim()
+    .min(3, 'Physical address is required')
     .max(200)
-    .regex(/^[\p{L}\p{N}\s,.#/'-]*$/u, 'Address has invalid characters')
-    .optional()
-    .transform((value) => value || undefined),
+    .regex(/^[\p{L}\p{N}\s,.#/'-]+$/u, 'Address has invalid characters'),
   nextOfKin: z
     .string()
     .trim()
+    .min(2, 'Next of kin is required')
     .max(100)
-    .regex(/^[\p{L}\s.'-]*$/u, 'Next of kin may only contain letters and spaces')
-    .optional()
-    .transform((value) => value || undefined),
+    .regex(/^[\p{L}\s.'-]+$/u, 'Next of kin may only contain letters and spaces'),
   employer: z
     .string()
     .trim()
+    .min(2, 'Employer is required')
     .max(120)
-    .regex(/^[\p{L}\p{N}\s.&'-]*$/u, 'Employer has invalid characters')
-    .optional()
-    .transform((value) => value || undefined),
-  secondContact: optionalPhone,
+    .regex(/^[\p{L}\p{N}\s.&'-]+$/u, 'Employer has invalid characters'),
+  secondContact: phone,
   notes: z
     .string()
     .trim()

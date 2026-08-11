@@ -208,54 +208,62 @@ export default function NewClientButton() {
                   <div className={step === 2 ? 'grid gap-3 sm:grid-cols-2' : 'hidden'}>
                     <label className="block sm:col-span-2">
                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant dark:text-blue-200/45">
-                        Physical address
+                        Physical address *
                       </span>
                       <input
                         className={field}
                         name="physicalAddress"
+                        required
                         autoFocus={step === 2}
                         maxLength={200}
+                        minLength={3}
                         title="Letters, numbers, and common address punctuation only"
                         onInput={onAddressInput()}
                       />
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant dark:text-blue-200/45">
-                        Next of kin
+                        Next of kin *
                       </span>
                       <input
                         className={field}
                         name="nextOfKin"
+                        required
                         maxLength={100}
-                        pattern="[A-Za-z\\s.']*"
+                        minLength={2}
+                        pattern="[A-Za-z\\s.']{2,100}"
                         title="Letters and spaces only"
                         onInput={onNameInput()}
                       />
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant dark:text-blue-200/45">
-                        Kin contact
+                        Kin contact *
                       </span>
                       <input
                         className={field}
                         name="secondContact"
+                        required
                         inputMode="numeric"
                         autoComplete="tel"
                         pattern="\d{9,12}"
                         maxLength={12}
-                        title="Optional — 9–12 digits only"
+                        minLength={9}
+                        title="9–12 digits only"
                         placeholder="07XXXXXXXX"
                         onInput={onDigitsInput()}
                       />
                     </label>
                     <label className="block sm:col-span-2">
                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant dark:text-blue-200/45">
-                        Employer
+                        Employer *
                       </span>
                       <input
                         className={field}
                         name="employer"
+                        required
                         maxLength={120}
+                        minLength={2}
                         title="Letters, numbers, and basic punctuation only"
                         onInput={onOrgInput()}
                       />

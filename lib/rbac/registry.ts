@@ -69,7 +69,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { key: PERMISSIONS.CLIENT_CREATE, label: 'Create clients', category: 'Clients' },
   { key: PERMISSIONS.CLIENT_EDIT, label: 'Edit clients', category: 'Clients' },
   { key: PERMISSIONS.CLIENT_SUSPEND, label: 'Suspend / activate clients', category: 'Clients' },
-  { key: PERMISSIONS.CLIENT_LOOKUP, label: 'Lookup up by ID / phone', category: 'Clients' },
+  { key: PERMISSIONS.CLIENT_LOOKUP, label: 'Lookup by ID / phone', category: 'Clients' },
   { key: PERMISSIONS.CLIENT_UPLOAD, label: 'Upload client documents', category: 'Clients' },
 
   { key: PERMISSIONS.VEHICLE_VIEW, label: 'View vehicles', category: 'Vehicles' },
