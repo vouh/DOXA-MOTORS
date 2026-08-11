@@ -7,17 +7,8 @@ export type RoleDef = {
   isSystem?: boolean
 }
 
-/** Sidebar — Stage 2 will filter by permission keys */
-export const NAV = [
-  { href: '/admin', label: 'Dashboard', icon: 'dashboard', permission: 'dashboard:view' },
-  { href: '/admin/clients', label: 'Clients', icon: 'people', permission: 'client:view' },
-  { href: '/admin/vehicles', label: 'Vehicles', icon: 'directions_car', permission: 'vehicle:view' },
-  { href: '/admin/bookings', label: 'Bookings & Dispatch', icon: 'assignment', permission: 'booking:view' },
-  { href: '/admin/owners', label: 'Owners', icon: 'person_pin', permission: 'owner:view' },
-  { href: '/admin/finance', label: 'Finance & Reports', icon: 'account_balance_wallet', permission: 'payment:view' },
-  { href: '/admin/notifications', label: 'Notifications', icon: 'notifications', permission: 'message:view' },
-  { href: '/admin/staff', label: 'Staff', icon: 'manage_accounts', permission: 'staff:view' },
-]
+/** Sidebar — Stage 2: prefer lib/rbac/nav.ts (permission-filtered). */
+export { NAV_ITEMS as NAV } from '@/lib/rbac/nav'
 
 export const MODULES: { id: string; label: string; icon: string; actions: string[] }[] = [
   { id: 'clients', label: 'Clients', icon: 'people', actions: ['View', 'Create', 'Edit', 'Suspend / Activate'] },

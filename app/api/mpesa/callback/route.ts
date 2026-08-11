@@ -55,12 +55,16 @@ export async function POST(req: NextRequest) {
         amount,
         mpesaRef: receipt || carPayment.mpesaRef,
         paidAt: new Date(),
+        failureReason: null,
       },
     })
   } else {
     await prisma.carPayment.update({
       where: { id: carPayment.id },
-      data: { status: 'FAILED' },
+      data: {
+        status: 'FAILED',
+        failureReason: cb.ResultDesc || `ResultCode ${cb.ResultCode}`,
+      },
     })
   }
 

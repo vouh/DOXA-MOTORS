@@ -1,12 +1,18 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { ZodError } from 'zod'
 import { prisma } from '@/lib/prisma'
 import {
   bookingSchema, clientSchema, conditionSchema, expenseSchema, ownerSchema,
   paymentSchema, penaltyRuleSchema, vehicleSchema,
+  instaPayManualSchema, instaStkSchema, reconcilePaymentSchema,
 } from '@/lib/car-hire/validation'
 import { bookingCharge, latenessPenalty, ownerSettlement } from '@/lib/car-hire/calculations'
+import { mpesaConfigured, stkPush } from '@/lib/mpesa/daraja'
+import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
+import { ForbiddenError, requirePermission } from '@/lib/rbac/require'
+import { PERMISSIONS } from '@/lib/rbac/registry'
 
 type ActionResult = { ok: true; message: string } | { ok: false; message: string }
 
@@ -15,6 +21,15 @@ function values(formData: FormData) {
 }
 
 function fail(error: unknown): ActionResult {
+  if (error instanceof ForbiddenError) {
+    return { ok: false, message: error.message }
+  }
+  if (error instanceof ZodError) {
+    return { ok: false, message: error.issues[0]?.message || 'Please check the form fields.' }
+  }
+  if (isConnectionError(error)) {
+    return { ok: false, message: friendlyErrorMessage(error) }
+  }
   const message = error instanceof Error ? error.message : 'The operation could not be completed.'
   return { ok: false, message }
 }
@@ -25,6 +40,7 @@ function refresh() {
 
 export async function createCarClient(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.CLIENT_CREATE)
     const data = clientSchema.parse(values(formData))
     await prisma.carClient.create({ data: { ...data, email: data.email || null } })
     refresh()
@@ -32,16 +48,83 @@ export async function createCarClient(formData: FormData): Promise<ActionResult>
   } catch (error) { return fail(error) }
 }
 
+export async function updateCarClient(formData: FormData): Promise<ActionResult> {
+  try {
+    await requirePermission(PERMISSIONS.CLIENT_EDIT)
+    const id = String(formData.get('id') || '').trim()
+    if (!id) return { ok: false, message: 'Client id is required.' }
+    const data = clientSchema.parse(values(formData))
+    await prisma.carClient.update({
+      where: { id },
+      data: { ...data, email: data.email || null },
+    })
+    refresh()
+    return { ok: true, message: 'Client details saved.' }
+  } catch (error) { return fail(error) }
+}
+
 export async function setCarClientStatus(id: string, status: 'ACTIVE' | 'SUSPENDED'): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.CLIENT_SUSPEND)
     await prisma.carClient.update({ where: { id }, data: { status } })
     refresh()
     return { ok: true, message: `Client ${status === 'ACTIVE' ? 'activated' : 'suspended'}.` }
   } catch (error) { return fail(error) }
 }
 
+/** Permanently remove a client and all related hire records (bookings, payments, etc.). */
+export async function deleteCarClient(id: string): Promise<ActionResult> {
+  try {
+    await requirePermission(PERMISSIONS.CLIENT_SUSPEND)
+    const client = await prisma.carClient.findUniqueOrThrow({
+      where: { id },
+      include: {
+        bookings: { select: { id: true, vehicleId: true, status: true } },
+      },
+    })
+    await prisma.$transaction(async (tx) => {
+      const bookingIds = client.bookings.map((b) => b.id)
+      if (bookingIds.length) {
+        await tx.carPayment.deleteMany({ where: { bookingId: { in: bookingIds } } })
+        await tx.carBooking.deleteMany({ where: { id: { in: bookingIds } } })
+
+        const openStatuses = new Set(['RESERVED', 'DISPATCHED', 'OVERDUE'])
+        const vehicleIds = [
+          ...new Set(
+            client.bookings
+              .filter((b) => openStatuses.has(b.status))
+              .map((b) => b.vehicleId),
+          ),
+        ]
+        for (const vehicleId of vehicleIds) {
+          const stillOpen = await tx.carBooking.count({
+            where: { vehicleId, status: { in: ['RESERVED', 'DISPATCHED', 'OVERDUE'] } },
+          })
+          if (stillOpen === 0) {
+            await tx.carVehicle.update({
+              where: { id: vehicleId },
+              data: { status: 'AVAILABLE' },
+            })
+          }
+        }
+      }
+
+      await tx.carClient.delete({ where: { id } })
+    })
+
+    refresh()
+    return {
+      ok: true,
+      message: client.bookings.length
+        ? `Client deleted with ${client.bookings.length} related hire record${client.bookings.length === 1 ? '' : 's'}.`
+        : 'Client deleted.',
+    }
+  } catch (error) { return fail(error) }
+}
+
 export async function createCarOwner(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.OWNER_CREATE)
     const data = ownerSchema.parse(values(formData))
     await prisma.carOwner.create({ data: { ...data, email: data.email || null } })
     refresh()
@@ -51,6 +134,7 @@ export async function createCarOwner(formData: FormData): Promise<ActionResult> 
 
 export async function createCarVehicle(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.VEHICLE_CREATE)
     const data = vehicleSchema.parse(values(formData))
     const vehicle = await prisma.carVehicle.create({
       data: {
@@ -70,6 +154,7 @@ export async function createCarVehicle(formData: FormData): Promise<ActionResult
 
 export async function createPenaltyRule(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.SETTINGS_PENALTY_EDIT)
     const data = penaltyRuleSchema.parse(values(formData))
     await prisma.$transaction([
       prisma.penaltyRule.updateMany({ where: { active: true }, data: { active: false } }),
@@ -82,11 +167,16 @@ export async function createPenaltyRule(formData: FormData): Promise<ActionResul
 
 export async function createCarBooking(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.BOOKING_CREATE)
     const data = bookingSchema.parse(values(formData))
     const { days, baseCharge } = bookingCharge(data.startAt, data.expectedReturnAt, data.dailyRate)
     const rule = await prisma.penaltyRule.findFirst({ where: { active: true }, orderBy: { effectiveFrom: 'desc' } })
     const reference = `DX-${Date.now().toString(36).toUpperCase()}`
     await prisma.$transaction(async (tx) => {
+      const client = await tx.carClient.findUniqueOrThrow({ where: { id: data.clientId } })
+      if (client.status !== 'ACTIVE') {
+        throw new Error('Suspended clients cannot start new hires. Activate the client first.')
+      }
       const vehicle = await tx.carVehicle.findUniqueOrThrow({ where: { id: data.vehicleId } })
       if (vehicle.status !== 'AVAILABLE') throw new Error('That vehicle is not available.')
       const overlap = await tx.carBooking.findFirst({
@@ -110,6 +200,7 @@ export async function createCarBooking(formData: FormData): Promise<ActionResult
 
 export async function dispatchCarBooking(id: string, formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.BOOKING_DISPATCH)
     const check = conditionSchema.parse(values(formData))
     await prisma.$transaction(async (tx) => {
       const booking = await tx.carBooking.findUniqueOrThrow({ where: { id }, include: { client: true, vehicle: true } })
@@ -138,6 +229,7 @@ export async function dispatchCarBooking(id: string, formData: FormData): Promis
 
 export async function extendCarBooking(id: string, newReturnAt: Date): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.BOOKING_EXTEND)
     await prisma.$transaction(async (tx) => {
       const booking = await tx.carBooking.findUniqueOrThrow({ where: { id } })
       if (!['DISPATCHED', 'OVERDUE'].includes(booking.status)) throw new Error('Only active hires can be extended.')
@@ -166,6 +258,7 @@ export async function extendCarBooking(id: string, newReturnAt: Date): Promise<A
 
 export async function checkInCarBooking(id: string, formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.BOOKING_CHECKIN)
     const check = conditionSchema.parse(values(formData))
     const actualReturnAt = new Date(String(formData.get('actualReturnAt') || new Date().toISOString()))
     await prisma.$transaction(async (tx) => {
@@ -210,11 +303,22 @@ export async function checkInCarBooking(id: string, formData: FormData): Promise
 
 export async function recordCarPayment(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.PAYMENT_RECORD)
     const data = paymentSchema.parse(values(formData))
     await prisma.$transaction(async (tx) => {
       const booking = await tx.carBooking.findUniqueOrThrow({ where: { id: data.bookingId }, include: { client: true } })
       await tx.carPayment.create({
-        data: { ...data, mpesaRef: data.mpesaRef || null, status: 'COMPLETED', paidAt: new Date() },
+        data: {
+          bookingId: data.bookingId,
+          amount: data.amount,
+          method: data.method,
+          mpesaRef: data.mpesaRef || null,
+          phone: data.phone || null,
+          notes: data.notes || null,
+          receivedBy: data.receivedBy || null,
+          status: 'COMPLETED',
+          paidAt: new Date(),
+        },
       })
       await tx.messageLog.create({
         data: {
@@ -230,8 +334,123 @@ export async function recordCarPayment(formData: FormData): Promise<ActionResult
   } catch (error) { return fail(error) }
 }
 
+/** Manual cash / M-Pesa / bank payment — booking optional (reconcile later). */
+export async function recordInstaManualPayment(formData: FormData): Promise<ActionResult> {
+  try {
+    await requirePermission(PERMISSIONS.PAYMENT_RECORD)
+    const raw = instaPayManualSchema.parse(values(formData))
+    const bookingId = raw.bookingId?.trim() || null
+    if (bookingId) {
+      await prisma.carBooking.findUniqueOrThrow({ where: { id: bookingId } })
+    }
+    await prisma.carPayment.create({
+      data: {
+        bookingId,
+        amount: raw.amount,
+        method: raw.method,
+        mpesaRef: raw.mpesaRef || null,
+        phone: raw.phone || null,
+        notes: raw.notes || null,
+        receivedBy: raw.receivedBy || null,
+        status: 'COMPLETED',
+        paidAt: new Date(),
+      },
+    })
+    refresh()
+    return {
+      ok: true,
+      message: bookingId
+        ? 'Manual payment recorded against booking.'
+        : 'Manual payment recorded — reconcile to a booking when ready.',
+    }
+  } catch (error) { return fail(error) }
+}
+
+/** Prompt client phone with Daraja STK — booking optional. */
+export async function initiateInstaStk(formData: FormData): Promise<ActionResult> {
+  try {
+    await requirePermission(PERMISSIONS.PAYMENT_STK)
+    if (!mpesaConfigured()) {
+      return { ok: false, message: 'M-Pesa is not configured. Set Daraja env vars to send STK.' }
+    }
+    const raw = instaStkSchema.parse(values(formData))
+    const bookingId = raw.bookingId?.trim() || null
+    let accountReference = (raw.accountRef || 'INSTAPAY').slice(0, 12)
+    if (bookingId) {
+      const booking = await prisma.carBooking.findUniqueOrThrow({ where: { id: bookingId } })
+      accountReference = booking.reference.slice(0, 12)
+    }
+    const response = await stkPush({
+      phone: raw.phone,
+      amount: raw.amount,
+      accountReference,
+      description: 'Doxa car hire',
+    })
+    if (response.ResponseCode !== '0') {
+      return { ok: false, message: response.CustomerMessage || 'STK Push was rejected.' }
+    }
+    await prisma.carPayment.create({
+      data: {
+        bookingId,
+        amount: raw.amount,
+        phone: raw.phone,
+        method: 'MPESA',
+        status: 'PENDING',
+        checkoutId: response.CheckoutRequestID,
+        notes: bookingId ? null : 'Insta Pay — awaiting reconcile',
+      },
+    })
+    refresh()
+    return {
+      ok: true,
+      message: response.CustomerMessage || 'STK Push sent. Ask the client to enter their M-Pesa PIN.',
+    }
+  } catch (error) { return fail(error) }
+}
+
+/** Attach a successful (or pending) Insta payment to a car-hire booking. */
+export async function reconcileCarPayment(formData: FormData): Promise<ActionResult> {
+  try {
+    await requirePermission(PERMISSIONS.PAYMENT_RECORD)
+    const { paymentId, bookingId } = reconcilePaymentSchema.parse(values(formData))
+    const [payment, booking] = await Promise.all([
+      prisma.carPayment.findUniqueOrThrow({ where: { id: paymentId } }),
+      prisma.carBooking.findUniqueOrThrow({ where: { id: bookingId }, include: { client: true } }),
+    ])
+    if (payment.bookingId && payment.bookingId !== bookingId) {
+      return { ok: false, message: 'This payment is already linked to another booking.' }
+    }
+    await prisma.carPayment.update({
+      where: { id: paymentId },
+      data: {
+        bookingId,
+        notes: payment.notes?.includes('reconcile')
+          ? `Reconciled to ${booking.reference}`
+          : payment.notes,
+      },
+    })
+    if (payment.status === 'COMPLETED') {
+      await prisma.messageLog.create({
+        data: {
+          recipientType: 'CLIENT',
+          recipientId: booking.clientId,
+          recipientName: booking.client.fullName,
+          destination: booking.client.email || booking.client.phone,
+          channel: booking.client.email ? 'EMAIL' : 'SMS',
+          template: 'payment_received',
+          body: `Payment of KES ${payment.amount.toLocaleString()} reconciled to hire ${booking.reference}.`,
+          status: 'QUEUED',
+        },
+      })
+    }
+    refresh()
+    return { ok: true, message: `Payment reconciled to ${booking.reference}.` }
+  } catch (error) { return fail(error) }
+}
+
 export async function recordCarExpense(formData: FormData): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.EXPENSE_RECORD)
     const data = expenseSchema.parse(values(formData))
     const vehicle = await prisma.carVehicle.findUniqueOrThrow({ where: { id: data.vehicleId } })
     await prisma.carExpense.create({ data: { ...data, ownerId: vehicle.ownerId } })
@@ -242,6 +461,7 @@ export async function recordCarExpense(formData: FormData): Promise<ActionResult
 
 export async function generateOwnerPayout(ownerId: string, periodStart: Date, periodEnd: Date): Promise<ActionResult> {
   try {
+    await requirePermission(PERMISSIONS.OWNER_PAYOUT)
     const owner = await prisma.carOwner.findUniqueOrThrow({
       where: { id: ownerId },
       include: {

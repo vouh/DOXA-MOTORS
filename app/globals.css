@@ -617,6 +617,35 @@ textarea.contact-field-modern {
   scrollbar-width: none;
 }
 
+/* —— Admin modals: very thin theme scrollbar —— */
+.thin-theme-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(12, 92, 240, 0.45) transparent;
+}
+.thin-theme-scroll::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+.thin-theme-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-theme-scroll::-webkit-scrollbar-thumb {
+  background: rgba(12, 92, 240, 0.4);
+  border-radius: 999px;
+}
+.thin-theme-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(12, 92, 240, 0.7);
+}
+.dark .thin-theme-scroll {
+  scrollbar-color: rgba(126, 176, 255, 0.45) transparent;
+}
+.dark .thin-theme-scroll::-webkit-scrollbar-thumb {
+  background: rgba(126, 176, 255, 0.4);
+}
+.dark .thin-theme-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(126, 176, 255, 0.7);
+}
+
 /* —— Admin sidebar link —— */
 .sidebar-link {
   display: flex;
@@ -683,6 +712,64 @@ textarea.contact-field-modern {
   color: #ECEEEF;
 }
 
+/* —— Dark / light theme switch animation —— */
+html.theme-animating,
+html.theme-animating *,
+html.theme-animating *::before,
+html.theme-animating *::after {
+  transition:
+    background-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    fill 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    stroke 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    outline-color 0.38s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* View Transitions API (Chrome / Edge): soft cross-fade of the full page */
+@supports (view-transition-name: root) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.4s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  ::view-transition-old(root) {
+    animation-name: theme-vt-fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: theme-vt-fade-in;
+  }
+}
+
+@keyframes theme-vt-fade-out {
+  from { opacity: 1; filter: blur(0); }
+  to { opacity: 0; filter: blur(4px); }
+}
+
+@keyframes theme-vt-fade-in {
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+@keyframes theme-icon-in {
+  from {
+    opacity: 0;
+    transform: rotate(-40deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.theme-toggle-icon {
+  display: inline-block;
+  animation: theme-icon-in 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .theme-loader-dot {
     animation: none;
@@ -706,5 +793,18 @@ textarea.contact-field-modern {
     transition: none !important;
     animation: none !important;
     transform: none !important;
+  }
+  html.theme-animating,
+  html.theme-animating *,
+  html.theme-animating *::before,
+  html.theme-animating *::after {
+    transition: none !important;
+  }
+  .theme-toggle-icon {
+    animation: none !important;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
   }
 }

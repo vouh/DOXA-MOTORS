@@ -1,30 +1,111 @@
 import { z } from 'zod'
 
 const optionalText = z.string().trim().optional().transform((value) => value || undefined)
-const phone = z.string().trim().min(9, 'Enter a valid phone number').max(20)
+
+const phone = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/\D/g, ''))
+  .pipe(
+    z
+      .string()
+      .min(9, 'Phone must be 9–12 digits')
+      .max(12, 'Phone must be 9–12 digits')
+      .regex(/^\d{9,12}$/, 'Phone must contain digits only'),
+  )
+
+/** Empty → undefined; otherwise 9–12 digits only. */
+const optionalPhone = z.preprocess((raw) => {
+  if (raw == null) return undefined
+  const digits = String(raw).replace(/\D/g, '')
+  return digits.length ? digits : undefined
+}, z.string().regex(/^\d{9,12}$/, 'Contact phone must be 9–12 digits').optional())
+
+const personName = z
+  .string()
+  .trim()
+  .min(2, 'Enter a full name')
+  .max(100)
+  .regex(/^[\p{L}\s.'-]+$/u, 'Name may only contain letters, spaces, apostrophes, or hyphens')
+
+const idOrPassport = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[^A-Za-z0-9]/g, ''))
+  .pipe(
+    z
+      .string()
+      .min(4, 'ID / passport must be at least 4 characters')
+      .max(20)
+      .regex(/^[A-Za-z0-9]+$/, 'ID / passport may only contain letters and numbers'),
+  )
+
+const licenceNo = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[^A-Za-z0-9-]/g, '').toUpperCase())
+  .pipe(
+    z
+      .string()
+      .min(3, 'Licence number is required')
+      .max(30)
+      .regex(/^[A-Za-z0-9-]+$/, 'Licence may only contain letters, numbers, and hyphens'),
+  )
 
 export const clientSchema = z.object({
-  fullName: z.string().trim().min(2),
+  fullName: personName,
   phone,
-  email: z.string().trim().email().optional().or(z.literal('')),
-  idOrPassportNo: z.string().trim().min(4),
-  licenceNo: z.string().trim().min(3),
-  licenceExpiry: z.coerce.date().optional(),
-  physicalAddress: optionalText,
-  nextOfKin: optionalText,
-  employer: optionalText,
-  secondContact: optionalText,
-  notes: optionalText,
+  email: z
+    .string()
+    .trim()
+    .max(120)
+    .email('Enter a valid email')
+    .optional()
+    .or(z.literal('')),
+  idOrPassportNo: idOrPassport,
+  licenceNo,
+  licenceExpiry: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.coerce.date().optional(),
+  ),
+  physicalAddress: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(/^[\p{L}\p{N}\s,.#/'-]*$/u, 'Address has invalid characters')
+    .optional()
+    .transform((value) => value || undefined),
+  nextOfKin: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/^[\p{L}\s.'-]*$/u, 'Next of kin may only contain letters and spaces')
+    .optional()
+    .transform((value) => value || undefined),
+  employer: z
+    .string()
+    .trim()
+    .max(120)
+    .regex(/^[\p{L}\p{N}\s.&'-]*$/u, 'Employer has invalid characters')
+    .optional()
+    .transform((value) => value || undefined),
+  secondContact: optionalPhone,
+  notes: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .transform((value) => value || undefined),
 })
 
 export const ownerSchema = z.object({
-  fullName: z.string().trim().min(2),
+  fullName: personName,
   phone,
   email: z.string().trim().email().optional().or(z.literal('')),
-  nationalId: z.string().trim().min(4),
+  nationalId: idOrPassport,
   kraPin: optionalText,
   bankDetails: optionalText,
-  mpesaNumber: optionalText,
+  mpesaNumber: optionalPhone,
   nextOfKin: optionalText,
   commissionType: z.enum(['PERCENTAGE', 'FIXED']).default('PERCENTAGE'),
   commissionValue: z.coerce.number().min(0),
@@ -36,12 +117,21 @@ export const vehicleSchema = z.object({
   regNumber: z.string().trim().min(5).transform((value) => value.toUpperCase()),
   make: z.string().trim().min(2),
   model: z.string().trim().min(1),
-  year: z.coerce.number().int().min(1980).max(2100).optional(),
+  year: z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    z.coerce.number().int().min(1980).max(2100).optional(),
+  ),
   color: optionalText,
   type: z.enum(['SALOON', 'SUV_4X4', 'VAN_MINIBUS', 'PICKUP', 'ECONOMY']),
   dailyRate: z.coerce.number().positive(),
-  insuranceExpiry: z.coerce.date().optional(),
-  inspectionExpiry: z.coerce.date().optional(),
+  insuranceExpiry: z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    z.coerce.date().optional(),
+  ),
+  inspectionExpiry: z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    z.coerce.date().optional(),
+  ),
 })
 
 export const bookingSchema = z.object({
@@ -76,7 +166,37 @@ export const paymentSchema = z.object({
   amount: z.coerce.number().positive(),
   method: z.enum(['CASH', 'MPESA', 'BANK', 'OTHER']),
   mpesaRef: optionalText,
-  phone: optionalText,
+  phone: optionalPhone,
+  notes: optionalText,
+  receivedBy: optionalText,
+})
+
+export const instaPayManualSchema = z.object({
+  amount: z.coerce.number().positive(),
+  method: z.enum(['CASH', 'MPESA', 'BANK', 'OTHER']),
+  bookingId: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : undefined)),
+  mpesaRef: optionalText,
+  phone: optionalPhone,
+  notes: optionalText,
+  receivedBy: optionalText,
+})
+
+export const instaStkSchema = z.object({
+  phone,
+  amount: z.coerce.number().positive(),
+  bookingId: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : undefined)),
+  accountRef: optionalText,
+})
+
+export const reconcilePaymentSchema = z.object({
+  paymentId: z.string().min(1),
+  bookingId: z.string().min(1),
 })
 
 export const expenseSchema = z.object({

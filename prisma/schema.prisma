@@ -123,7 +123,10 @@ model User {
   email        String     @unique
   fullName     String
   phone        String?
+  /// @deprecated Stage 2 — use roleId. Kept for transition / middleware fallback.
   staffRole    StaffRole  @default(CLERK)
+  roleId       String?
+  role         Role?      @relation(fields: [roleId], references: [id], onDelete: SetNull)
   status       UserStatus @default(ACTIVE)
   isSuperAdmin Boolean    @default(false)
   avatarUrl    String?
@@ -134,7 +137,55 @@ model User {
   attachmentsUploaded  Attachment[]
   broadcastsCreated    Broadcast[]
 
+  @@index([roleId])
   @@map("users")
+}
+
+/// Fixed capability keys (synced from lib/rbac/registry.ts). Super Admin cannot invent keys.
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  label       String
+  category    String
+  description String?
+  createdAt   DateTime         @default(now())
+  roleLinks   RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Admin-created named roles. Super Admin system role is isSystem=true.
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  active      Boolean          @default(true)
+  createdBy   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Bump version when any role's permissions change — invalidates permission caches.
+model RbacMeta {
+  id      Int @id @default(1)
+  version Int @default(1)
+
+  @@map("rbac_meta")
 }
 
 model AuditLog {
@@ -360,20 +411,24 @@ model CarPenalty {
 }
 
 model CarPayment {
-  id         String           @id @default(cuid())
-  bookingId  String
-  booking    CarBooking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  amount     Float
-  method     PaymentMethod
-  status     CarPaymentStatus @default(COMPLETED)
-  mpesaRef   String?          @unique
-  checkoutId String?          @unique
-  phone      String?
-  receivedBy String?
-  paidAt     DateTime?
-  createdAt  DateTime         @default(now())
+  id             String           @id @default(cuid())
+  bookingId      String?
+  booking        CarBooking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  amount         Float
+  method         PaymentMethod
+  status         CarPaymentStatus @default(COMPLETED)
+  mpesaRef       String?          @unique
+  checkoutId     String?          @unique
+  phone          String?
+  receivedBy     String?
+  /// Daraja ResultDesc or staff note (e.g. wrong PIN, cancelled)
+  failureReason  String?
+  notes          String?
+  paidAt         DateTime?
+  createdAt      DateTime         @default(now())
 
   @@index([bookingId, status])
+  @@index([status, createdAt])
   @@index([paidAt])
   @@map("car_payments")
 }

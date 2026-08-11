@@ -1,11 +1,15 @@
 'use client'
 
+/**
+ * Dev-only helper — Super Admin only (matches Stage 2 seed).
+ * Not shown on the login form by default; import only when needed.
+ */
 const ACCOUNTS: { email: string; password: string; label: string }[] = [
-  { email: 'superadmin@doxacarhire.com', password: 'SuperAdmin@2026!', label: 'Super Admin / Director' },
-  { email: 'admin@doxacarhire.com', password: 'ChangeMe123!', label: 'Director' },
-  { email: 'dispatch@doxacarhire.com', password: 'ChangeMe123!', label: 'Office Clerk' },
-  { email: 'fleet@doxacarhire.com', password: 'ChangeMe123!', label: 'Yard Staff' },
-  { email: 'finance@doxacarhire.com', password: 'ChangeMe123!', label: 'Accountant' },
+  {
+    email: 'superadmin@doxacarhire.com',
+    password: 'SuperAdmin@2026!',
+    label: 'Super Admin',
+  },
 ]
 
 export default function DevAccountsDropdown({
@@ -20,9 +24,9 @@ export default function DevAccountsDropdown({
   return (
     <div className="absolute z-40 top-full left-0 right-0 mt-1 rounded-lg border border-outline-variant bg-white shadow-lg overflow-hidden">
       <p className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-on-surface-variant bg-surface-container-low border-b border-outline-variant/60">
-        Dev accounts — click to autofill
+        Dev — Super Admin only
       </p>
-      <ul className="max-h-56 overflow-y-auto">
+      <ul>
         {ACCOUNTS.map((a) => (
           <li key={a.email}>
             <button

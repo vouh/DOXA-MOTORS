@@ -1,9 +1,60 @@
-import { PrismaClient, PaymentMethod, StaffRole, UserStatus } from '@prisma/client'
+import { PrismaClient, StaffRole, UserStatus } from '@prisma/client'
+import {
+  ALL_PERMISSION_KEYS,
+  PERMISSION_CATALOG,
+  SUPER_ADMIN_ROLE_NAME,
+} from '../lib/rbac/registry'
 
 const prisma = new PrismaClient()
 
+async function syncPermissions() {
+  for (const def of PERMISSION_CATALOG) {
+    await prisma.permission.upsert({
+      where: { key: def.key },
+      create: {
+        key: def.key,
+        label: def.label,
+        category: def.category,
+        description: def.description,
+      },
+      update: {
+        label: def.label,
+        category: def.category,
+        description: def.description,
+      },
+    })
+  }
+}
+
+async function ensureSuperAdminRole() {
+  let role = await prisma.role.findUnique({ where: { name: SUPER_ADMIN_ROLE_NAME } })
+  if (!role) {
+    role = await prisma.role.create({
+      data: {
+        name: SUPER_ADMIN_ROLE_NAME,
+        description: 'System role — full access. Cannot be deleted.',
+        isSystem: true,
+        active: true,
+      },
+    })
+  }
+
+  const perms = await prisma.permission.findMany({
+    where: { key: { in: [...ALL_PERMISSION_KEYS] } },
+    select: { id: true },
+  })
+  for (const p of perms) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: role.id, permissionId: p.id } },
+      create: { roleId: role.id, permissionId: p.id },
+      update: {},
+    })
+  }
+  return role
+}
+
 async function main() {
-  console.log('Seeding Doxa Car Hire…')
+  console.log('Seeding Doxa Car Hire (RBAC Stage 2 — Super Admin only)…')
 
   await prisma.messageLog.deleteMany()
   await prisma.carPenalty.deleteMany()
@@ -23,6 +74,14 @@ async function main() {
   await prisma.broadcast.deleteMany()
   await prisma.auditLog.deleteMany()
   await prisma.user.deleteMany()
+  await prisma.rolePermission.deleteMany()
+  await prisma.role.deleteMany()
+  await prisma.permission.deleteMany()
+  await prisma.rbacMeta.deleteMany()
+
+  await prisma.rbacMeta.create({ data: { id: 1, version: 1 } })
+  await syncPermissions()
+  const superRole = await ensureSuperAdminRole()
 
   const director = await prisma.user.create({
     data: {
@@ -32,46 +91,7 @@ async function main() {
       staffRole: StaffRole.DIRECTOR,
       status: UserStatus.ACTIVE,
       isSuperAdmin: true,
-    },
-  })
-
-  await prisma.user.create({
-    data: {
-      email: 'admin@doxacarhire.com',
-      fullName: 'Director',
-      phone: '+254700000002',
-      staffRole: StaffRole.DIRECTOR,
-      status: UserStatus.ACTIVE,
-    },
-  })
-
-  await prisma.user.create({
-    data: {
-      email: 'dispatch@doxacarhire.com',
-      fullName: 'Office Clerk',
-      phone: '+254711111111',
-      staffRole: StaffRole.CLERK,
-      status: UserStatus.ACTIVE,
-    },
-  })
-
-  await prisma.user.create({
-    data: {
-      email: 'fleet@doxacarhire.com',
-      fullName: 'Yard Staff',
-      phone: '+254722222222',
-      staffRole: StaffRole.YARD,
-      status: UserStatus.ACTIVE,
-    },
-  })
-
-  await prisma.user.create({
-    data: {
-      email: 'finance@doxacarhire.com',
-      fullName: 'Accountant',
-      phone: '+254733333333',
-      staffRole: StaffRole.ACCOUNTANT,
-      status: UserStatus.ACTIVE,
+      roleId: superRole.id,
     },
   })
 
@@ -98,132 +118,65 @@ async function main() {
       mpesaNumber: '0711111111',
       nextOfKin: 'Jane Kamau 0722222222',
       commissionType: 'PERCENTAGE',
-      commissionValue: 20,
-      recurringDeduction: 500,
-    },
-  })
-
-  const owner2 = await prisma.carOwner.create({
-    data: {
-      fullName: 'Jane Njoki',
-      phone: '0722222222',
-      nationalId: '23456789',
-      commissionType: 'FIXED',
-      commissionValue: 2000,
+      commissionValue: 30,
     },
   })
 
   const vehicle = await prisma.carVehicle.create({
     data: {
-      ownerId: owner.id,
-      regNumber: 'KCA123A',
-      make: 'Toyota',
-      model: 'Fielder',
-      year: 2018,
-      color: 'Silver',
-      type: 'SALOON',
-      dailyRate: 2500,
-      status: 'AVAILABLE',
-    },
-  })
-
-  await prisma.carVehicle.create({
-    data: {
-      ownerId: owner2.id,
-      regNumber: 'KDB456B',
+      regNumber: 'KDA 123A',
       make: 'Toyota',
       model: 'Axio',
       year: 2019,
-      type: 'ECONOMY',
-      dailyRate: 2200,
+      type: 'SALOON',
+      dailyRate: 4500,
       status: 'AVAILABLE',
+      ownerId: owner.id,
     },
-  })
-
-  const expiry = new Date()
-  expiry.setDate(expiry.getDate() + 7)
-  await prisma.vehicleDocument.create({
-    data: { vehicleId: vehicle.id, type: 'INSURANCE', expiryDate: expiry },
   })
 
   const client = await prisma.carClient.create({
     data: {
-      fullName: 'James Kariuki',
-      phone: '0712345678',
+      fullName: 'James Otieno',
+      phone: '0700123456',
       email: 'james@example.com',
       idOrPassportNo: '87654321',
       licenceNo: 'DL-001',
-      physicalAddress: 'Roysambu, Nairobi',
-      nextOfKin: 'Mary Kariuki 0799999999',
+      physicalAddress: 'Westlands, Nairobi',
       status: 'ACTIVE',
     },
   })
 
-  await prisma.carClient.create({
-    data: {
-      fullName: 'Peter Otieno',
-      phone: '0734567890',
-      idOrPassportNo: '11223344',
-      licenceNo: 'DL-002',
-      status: 'SUSPENDED',
-    },
-  })
-
   const start = new Date()
-  start.setHours(8, 0, 0, 0)
+  start.setHours(9, 0, 0, 0)
   const end = new Date(start)
-  end.setDate(end.getDate() + 2)
+  end.setDate(end.getDate() + 3)
 
-  const booking = await prisma.carBooking.create({
+  await prisma.carBooking.create({
     data: {
-      reference: 'DX-SEED001',
+      reference: 'DX-SEED-001',
       clientId: client.id,
       vehicleId: vehicle.id,
-      penaltyRuleId: rule.id,
       startAt: start,
       expectedReturnAt: end,
-      dailyRate: 2500,
-      days: 2,
-      baseCharge: 5000,
-      totalCharge: 5000,
+      days: 3,
+      dailyRate: 4500,
+      baseCharge: 13500,
+      totalCharge: 13500,
       status: 'RESERVED',
+      penaltyRuleId: rule.id,
       createdBy: director.id,
     },
   })
 
-  await prisma.carVehicle.update({
-    where: { id: vehicle.id },
-    data: { status: 'RESERVED' },
+  await prisma.carHireSetting.create({
+    data: { key: 'company_name', value: 'Doxa Motor Solutions' },
   })
 
-  await prisma.carPayment.create({
-    data: {
-      bookingId: booking.id,
-      amount: 2500,
-      method: PaymentMethod.MPESA,
-      status: 'COMPLETED',
-      mpesaRef: 'SEED-MPESA-001',
-      paidAt: new Date(),
-      receivedBy: director.fullName,
-    },
-  })
-
-  await prisma.auditLog.create({
-    data: {
-      userId: director.id,
-      action: 'seed.complete',
-      entity: 'system',
-      meta: { owners: 2, vehicles: 2, clients: 2, bookings: 1 },
-    },
-  })
-
-  console.log('Seed complete:', {
-    users: 5,
-    owners: 2,
-    vehicles: 2,
-    clients: 2,
-    bookings: 1,
-  })
+  console.log('Seed complete.')
+  console.log('  Super Admin:', director.email, '→ role', SUPER_ADMIN_ROLE_NAME)
+  console.log('  No other staff roles seeded — create them in /admin/staff')
+  console.log('  Run: npm run db:bootstrap-auth  (password SuperAdmin@2026!)')
 }
 
 main()

@@ -75,8 +75,10 @@ export async function middleware(req: NextRequest) {
     ? user.app_metadata.status
     : null
   const isSuperAdmin = Boolean(user.app_metadata?.isSuperAdmin)
+  const roleId = typeof user.app_metadata?.roleId === 'string' ? user.app_metadata.roleId : null
 
-  if (!staffRole && !isSuperAdmin) {
+  // Stage 2: allow Super Admin, assigned roleId, or legacy staffRole enum
+  if (!isSuperAdmin && !roleId && !staffRole) {
     const url = req.nextUrl.clone()
     url.pathname = '/admin/login'
     url.searchParams.set('next', pathname)

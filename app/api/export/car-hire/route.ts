@@ -1,12 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ForbiddenError, requirePermission } from '@/lib/rbac/require'
+import { PERMISSIONS } from '@/lib/rbac/registry'
 
 function csvCell(value: unknown) {
   const text = value == null ? '' : String(value)
   return `"${text.replaceAll('"', '""')}"`
 }
 
+function authErrorResponse(error: unknown) {
+  if (error instanceof ForbiddenError) {
+    return NextResponse.json({ error: error.message }, { status: 403 })
+  }
+  if (
+    error instanceof Error &&
+    (error.message === 'Unauthorized' || error.message === 'Account is not active')
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return null
+}
+
 export async function GET(request: NextRequest) {
+  try {
+    await requirePermission(PERMISSIONS.REPORT_EXPORT)
+  } catch (error) {
+    const auth = authErrorResponse(error)
+    if (auth) return auth
+    throw error
+  }
+
   const report = request.nextUrl.searchParams.get('report') || 'bookings'
   let rows: unknown[][] = []
   if (report === 'clients') {

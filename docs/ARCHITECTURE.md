@@ -5,27 +5,35 @@
 
 This is the **single** reference for:
 
-1. **System architecture** — how the stack fits together  
-2. **Backend / env setup** — Supabase, secrets, seed, deploy  
-3. **RBAC design** — permissions → roles → users · one `/admin` shell  
+1. **System architecture** — how the stack fits together
+2. **Backend / env setup** — Supabase, secrets, seed, deploy
+3. **RBAC design** — permissions → roles → users · one `/admin` shell
 
 **Related:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [DATA_MODEL.md](DATA_MODEL.md) · [DESIGN.md](DESIGN.md) · [README](../README.md)
 
-**Dev URL:** http://localhost:3002
+**Dev URL:** [http://localhost:3002](http://localhost:3002)
 
 ---
+
+
 
 ## Contents
 
-| Part | Section |
-|------|---------|
-| A | [System architecture](#a--system-architecture) |
-| B | [Backend & environment setup](#b--backend--environment-setup) |
-| C | [RBAC design](#c--rbac-design) |
+
+| Part | Section                                                       |
+| ---- | ------------------------------------------------------------- |
+| A    | [System architecture](#a--system-architecture)                |
+| B    | [Backend & environment setup](#b--backend--environment-setup) |
+| C    | [RBAC design](#c--rbac-design)                                |
+
 
 ---
 
+
+
 # A — System architecture
+
+
 
 ## A1. Run locally (quick)
 
@@ -39,19 +47,23 @@ npm run db:bootstrap-auth
 npm run dev                          # http://localhost:3002
 ```
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Next.js frontend + API (App Router) on **:3002** |
-| `npm run build` / `start` | Production build / serve |
-| `npm test` | Vitest unit tests |
-| `npx playwright test` | E2E smoke |
-| `npm run db:migrate` | Apply Prisma migrations |
-| `npm run db:seed` | Car-hire fixtures |
-| `npm run db:studio` | Browse DB |
+
+| Command                   | Purpose                                          |
+| ------------------------- | ------------------------------------------------ |
+| `npm run dev`             | Next.js frontend + API (App Router) on **:3002** |
+| `npm run build` / `start` | Production build / serve                         |
+| `npm test`                | Vitest unit tests                                |
+| `npx playwright test`     | E2E smoke                                        |
+| `npm run db:migrate`      | Apply Prisma migrations                          |
+| `npm run db:seed`         | Car-hire fixtures                                |
+| `npm run db:studio`       | Browse DB                                        |
+
 
 There is no separate backend process — **Next.js is the full stack** (UI + route handlers + server actions). Supabase hosts Postgres, Auth, and Storage.
 
 ---
+
+
 
 ## A2. Layered view
 
@@ -84,7 +96,11 @@ flowchart TB
   Mpesa -->|callback| Actions
 ```
 
+
+
 ---
+
+
 
 ## A3. Auth + one admin shell (overview)
 
@@ -99,6 +115,8 @@ flowchart TD
   Shell --> Gate["requirePermission on pages + actions + APIs"]
 ```
 
+
+
 ```
 Permissions (code registry)  →  Roles (admin UI)  →  Users (one roleId each)  →  one /admin shell
 ```
@@ -106,6 +124,8 @@ Permissions (code registry)  →  Roles (admin UI)  →  Users (one roleId each)
 Full RBAC detail is in [Part C](#c--rbac-design).
 
 ---
+
+
 
 ## A4. Hire lifecycle
 
@@ -123,7 +143,11 @@ sequenceDiagram
   App->>DB: Penalty if late + RETURNED + AVAILABLE
 ```
 
+
+
 ---
+
+
 
 ## A5. M-Pesa
 
@@ -142,9 +166,13 @@ sequenceDiagram
   App->>DB: COMPLETED or FAILED idempotent
 ```
 
+
+
 Credentials stay server-side only. Callback must be idempotent on `mpesa_ref`.
 
 ---
+
+
 
 ## A6. Cron + messaging
 
@@ -158,21 +186,29 @@ flowchart LR
   Worker --> SMS[SMS]
 ```
 
+
+
 Cron requires `Authorization: Bearer CRON_SECRET` (fail closed).
 
 ---
 
+
+
 ## A7. API surface (car hire)
 
-| Area | Examples |
-|------|----------|
-| Auth | `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, `/auth/callback` |
-| M-Pesa | `/api/car-hire/mpesa/stk`, `/api/mpesa/callback` |
-| Cron | `/api/cron/car-hire` |
-| Export | `/api/export/car-hire` (must be authenticated) |
-| Mutations | Prefer `app/actions/car-hire.ts` server actions over ad-hoc REST |
+
+| Area      | Examples                                                                |
+| --------- | ----------------------------------------------------------------------- |
+| Auth      | `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, `/auth/callback` |
+| M-Pesa    | `/api/car-hire/mpesa/stk`, `/api/mpesa/callback`                        |
+| Cron      | `/api/cron/car-hire`                                                    |
+| Export    | `/api/export/car-hire` (must be authenticated)                          |
+| Mutations | Prefer `app/actions/car-hire.ts` server actions over ad-hoc REST        |
+
 
 ---
+
+
 
 ## A8. Storage
 
@@ -180,14 +216,18 @@ Private buckets for ID copies, licences, logbooks, agreements. Short-lived **sig
 
 ---
 
+
+
 # B — Backend & environment setup
+
+
 
 ## B1. Prerequisites
 
-1. Node.js 20+ and npm  
-2. A [Supabase](https://supabase.com) project  
-3. A [Resend](https://resend.com) account (optional until email is needed)  
-4. Optional: Safaricom Daraja sandbox (M-Pesa)  
+1. Node.js 20+ and npm
+2. A [Supabase](https://supabase.com) project
+3. A [Resend](https://resend.com) account (optional until email is needed)
+4. Optional: Safaricom Daraja sandbox (M-Pesa)
 5. Optional: SMS provider (Africa's Talking recommended)
 
 ```bash
@@ -197,31 +237,35 @@ copy .env.local.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3002.
+Open [http://localhost:3002](http://localhost:3002).
 
 ---
+
+
 
 ## B2. Environment variables
 
 Fill `.env.local` (never commit secrets):
 
-| Variable | Where | Purpose |
-|----------|-------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API | Project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same (publishable / anon) | Browser + SSR |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same (optional legacy) | Fallback |
-| `SUPABASE_SERVICE_ROLE_KEY` | Same (service_role) | Server admin only |
-| `DATABASE_URL` | Database → pooler / Transaction | Prisma + PgBouncer |
-| `DIRECT_URL` | Database → Session / direct | Migrations / `db:push` |
-| `RESEND_API_KEY` | Resend dashboard | Email notifications |
-| `FROM_EMAIL` | Verified sender | From address |
-| `SMS_API_KEY` | SMS provider dashboard | SMS notifications |
-| `SMS_USERNAME` | SMS provider | Account username |
-| `SMS_SENDER_ID` | SMS provider | Sender name (e.g. DOXA) |
-| `NEXT_PUBLIC_APP_URL` | Your URL | e.g. `http://localhost:3002` |
-| `MPESA_*` | Daraja portal | STK Push payments |
-| `CRON_SECRET` | You generate | Protects cron routes |
-| `SENTRY_DSN` | Optional | Error tracking |
+
+| Variable                               | Where                           | Purpose                      |
+| -------------------------------------- | ------------------------------- | ---------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase → Settings → API       | Project URL                  |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same (publishable / anon)       | Browser + SSR                |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | Same (optional legacy)          | Fallback                     |
+| `SUPABASE_SERVICE_ROLE_KEY`            | Same (service_role)             | Server admin only            |
+| `DATABASE_URL`                         | Database → pooler / Transaction | Prisma + PgBouncer           |
+| `DIRECT_URL`                           | Database → Session / direct     | Migrations / `db:push`       |
+| `RESEND_API_KEY`                       | Resend dashboard                | Email notifications          |
+| `FROM_EMAIL`                           | Verified sender                 | From address                 |
+| `SMS_API_KEY`                          | SMS provider dashboard          | SMS notifications            |
+| `SMS_USERNAME`                         | SMS provider                    | Account username             |
+| `SMS_SENDER_ID`                        | SMS provider                    | Sender name (e.g. DOXA)      |
+| `NEXT_PUBLIC_APP_URL`                  | Your URL                        | e.g. `http://localhost:3002` |
+| `MPESA_*`                              | Daraja portal                   | STK Push payments            |
+| `CRON_SECRET`                          | You generate                    | Protects cron routes         |
+| `SENTRY_DSN`                           | Optional                        | Error tracking               |
+
 
 Example shapes:
 
@@ -241,18 +285,22 @@ Tips:
 
 ---
 
+
+
 ## B3. Supabase project checklist
 
-1. Create a project (region near Kenya — e.g. `eu-west-1` or `af-south-1`).  
-2. Copy URL + publishable key + **service role** into `.env.local`.  
-3. **Authentication → Providers:** enable Email; enable **Google** when ready (see B5).  
+1. Create a project (region near Kenya — e.g. `eu-west-1` or `af-south-1`).
+2. Copy URL + publishable key + **service role** into `.env.local`.
+3. **Authentication → Providers:** enable Email; enable **Google** when ready (see B5).
 4. **Authentication → URL configuration:**
-   - Site URL: `http://localhost:3002`
-   - Redirects: `http://localhost:3002/**`, `http://localhost:3002/auth/callback` (+ production later)
+  - Site URL: `http://localhost:3002`
+  - Redirects: `http://localhost:3002/**`, `http://localhost:3002/auth/callback` (+ production later)
 
 Client files: `utils/supabase/client.ts`, `utils/supabase/server.ts`, `lib/supabase-server.ts`.
 
 ---
+
+
 
 ## B4. Database schema + seed
 
@@ -269,39 +317,47 @@ Seed login accounts (dev only): see [DATA_MODEL.md — Seeded dev accounts](./DA
 
 ---
 
+
+
 ## B5. Google OAuth (optional)
 
-1. Supabase → Authentication → Providers → **Google** → Enable.  
-2. Google Cloud Console → OAuth 2.0 Client (Web).  
-3. Authorized redirect: `https://<project-ref>.supabase.co/auth/v1/callback`  
-4. Paste Client ID / Secret into Supabase.  
+1. Supabase → Authentication → Providers → **Google** → Enable.
+2. Google Cloud Console → OAuth 2.0 Client (Web).
+3. Authorized redirect: `https://<project-ref>.supabase.co/auth/v1/callback`
+4. Paste Client ID / Secret into Supabase.
 5. Confirm Site URL + `http://localhost:3002/auth/callback` in Auth URL config.
 
 Staff admin login (`/admin/login`) has no Google button.
 
+**Login throttle:** `/api/auth/login` locks an email+IP after **5** failed passwords for **15 minutes** (`lib/auth/login-throttle.ts`), returns HTTP **429**, and writes `auth.login_failed` / `auth.login` audit rows. This is process-local (warm instances); for multi-region Vercel, pair with Supabase Auth rate limits / a shared store later.
+
 ---
+
+
 
 ## B6. Row Level Security + Storage
 
 After schema apply, in Supabase **SQL Editor**:
 
-1. Run [`supabase/policies.sql`](../supabase/policies.sql)  
-2. Run [`supabase/storage.sql`](../supabase/storage.sql)
+1. Run `[supabase/policies.sql](../supabase/policies.sql)`
+2. Run `[supabase/storage.sql](../supabase/storage.sql)`
 
 Buckets:
 
 - `car-hire-docs` / private docs — ID copies, licences, logbooks, agreements  
 - `documents` — private (receipts, owner statements, reports)  
-- `vehicles` — public read (vehicle photos) where needed  
+- `vehicles` — public read (vehicle photos) where needed
 
 Never put the service role key in browser code.
 
 ---
 
+
+
 ## B7. Resend (email)
 
-1. Create API key → `RESEND_API_KEY`.  
-2. Verify domain or use Resend test domain locally.  
+1. Create API key → `RESEND_API_KEY`.
+2. Verify domain or use Resend test domain locally.
 3. Set `FROM_EMAIL` (e.g. `noreply@doxacarhire.com`).
 
 Without a key, the app skips sending and continues.
@@ -310,77 +366,86 @@ Email triggers (when wired): booking confirmation, return reminder, late return,
 
 ---
 
+
+
 ## B8. SMS (when ready)
 
-1. Sign up at [Africa's Talking](https://africastalking.com).  
-2. Fill `SMS_API_KEY`, `SMS_USERNAME`, `SMS_SENDER_ID` in `.env.local`.  
+1. Sign up at [Africa's Talking](https://africastalking.com).
+2. Fill `SMS_API_KEY`, `SMS_USERNAME`, `SMS_SENDER_ID` in `.env.local`.
 3. SMS for: booking confirmation, return reminders, payment receipts.
 
 Without SMS keys, the app skips and continues.
 
 ---
 
+
+
 ## B9. RBAC bootstrap
 
-**Plain English:** After the database is ready, seed creates permission keys and starter roles. You invite staff by email and give each person **one role**. Everyone uses the same `/admin` site; the menu only shows what their role allows. The server also blocks unauthorized actions.
+**Plain English:** After the database is ready, seed creates permission keys and the system **Super Admin** role plus **one** staff user. You invite more staff by email and give each person **one role**. Everyone uses the same `/admin` site; the menu only shows what their role allows. The server also blocks unauthorized actions.
 
-**Setup steps (Stage 2+)**
+**Setup steps**
 
-1. Apply schema that includes `permissions`, `roles`, `role_permissions`, `users.roleId`, `rbac_meta`.  
-2. Sync permission registry from code → DB (`lib/rbac/registry.ts` via seed or sync script).  
-3. Seed starter roles: Super Admin, Clerk, Yard, Accountant (see [Part C](#c--rbac-design)).  
-4. `npm run db:seed` then `npm run db:bootstrap-auth` so Auth users match Prisma `User` rows.  
-5. Log in as Super Admin → `/admin/staff` → create custom roles / assign roles by email.  
-6. Confirm: Clerk cannot open Finance exports; Yard cannot edit penalty rules; etc.
+1. Apply schema that includes `permissions`, `roles`, `role_permissions`, `users.roleId`, `rbac_meta`.
+2. Sync permission registry from code → DB (`lib/rbac/registry.ts` via seed).
+3. Seed creates the **Super Admin** system role only. Create Clerk / Yard / Accountant (or custom) roles in `/admin/staff` when needed (see [Part C](#c--rbac-design)).
+4. `npm run db:seed` then `npm run db:bootstrap-auth` so the Auth user matches the Prisma `User` row.
+5. Log in as Super Admin → `/admin/staff` → invite staff / create roles / assign by email.
+6. Confirm role menus: e.g. Clerk cannot open Finance exports; Yard cannot edit penalty rules.
 
 **Technical checklist**
 
-| Item | Detail |
-|------|--------|
-| One shell | All staff → `http://localhost:3002/admin` |
-| Gate | Every mutation: `requirePermission('…')` |
-| JWT metadata | `roleId`, `rbacVersion`, `isSuperAdmin`, `status` — **not** full permission arrays |
-| Role change | Re-sync that user’s Supabase `app_metadata` |
-| Permission change on a role | Bump `rbac_meta.version` so caches invalidate |
-| Env | No extra RBAC secrets; uses same Supabase Auth + Prisma |
 
-**Dev seed accounts** (after bootstrap — change passwords in production):
+| Item                        | Detail                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| One shell                   | All staff → `http://localhost:3002/admin`                                          |
+| Gate                        | Every mutation: `requirePermission('…')`                                           |
+| JWT metadata                | `roleId`, `rbacVersion`, `isSuperAdmin`, `status` — **not** full permission arrays |
+| Role change                 | Re-sync that user’s Supabase `app_metadata`                                        |
+| Permission change on a role | Bump `rbac_meta.version` so caches invalidate                                      |
+| Env                         | No extra RBAC secrets; uses same Supabase Auth + Prisma                            |
 
-| Email | Role intent | Password (dev) |
-|-------|-------------|----------------|
+
+**Dev seed account** (after bootstrap — change the password in production):
+
+| Email | Role | Password (dev) |
+| ----- | ---- | -------------- |
 | `superadmin@doxacarhire.com` | Super Admin / Director | `SuperAdmin@2026!` |
-| `admin@doxacarhire.com` | Admin / Director | `ChangeMe123!` |
-| `dispatch@doxacarhire.com` | Clerk | `ChangeMe123!` |
-| `fleet@doxacarhire.com` | Yard | `ChangeMe123!` |
-| `finance@doxacarhire.com` | Accountant | `ChangeMe123!` |
 
-Until Stage 2 tables land, temporary `StaffRole` enum is used — treat RBAC UI as preview.
+No other staff accounts are seeded. Extra roles and users are created in `/admin/staff`.
+
 
 ---
 
+
+
 ## B10. M-Pesa Daraja (when ready)
 
-1. Fill Daraja credentials in `.env.local` (`MPESA_*`).  
-2. Deploy somewhere with public HTTPS (Vercel).  
-3. Set the STK callback URL to your production `/api/mpesa/callback`.  
+1. Fill Daraja credentials in `.env.local` (`MPESA_*`).
+2. Deploy somewhere with public HTTPS (Vercel).
+3. Set the STK callback URL to your production `/api/mpesa/callback`.
 4. Test sandbox STK from the Finance dashboard.
 
 Routes: `app/api/car-hire/mpesa/stk`, `app/api/mpesa/callback`.
 
 ---
 
+
+
 ## B11. Hosting (Vercel + Supabase)
 
-1. Import repo to Vercel; set all env vars.  
-2. `NEXT_PUBLIC_APP_URL` = production domain.  
-3. Supabase Auth redirect URLs = production domain.  
-4. Resend DNS for the sending domain.  
-5. Migrate / push schema against production.  
+1. Import repo to Vercel; set all env vars.
+2. `NEXT_PUBLIC_APP_URL` = production domain.
+3. Supabase Auth redirect URLs = production domain.
+4. Resend DNS for the sending domain.
+5. Migrate / push schema against production.
 6. Point M-Pesa callback at production when live.
 
 Shared PHP hosting is not suitable for this stack.
 
 ---
+
+
 
 ## B12. Commands reference
 
@@ -401,12 +466,16 @@ npm run lint
 
 ---
 
+
+
 # C — RBAC design
 
 **Permissions → Roles → Users · one dashboard shell**  
 Referenced from Stage 2 of [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ---
+
+
 
 ## C1. Mental model
 
@@ -436,22 +505,31 @@ flowchart TD
   Shell --> Actions[Server actions requirePermission]
 ```
 
+
+
 ---
+
+
 
 ## C2. Rules (locked)
 
-| Topic | Decision |
-|-------|----------|
-| Who invents permission keys | Developers only — Super Admin cannot invent keys |
-| Who creates roles | Super Admin — combinations of existing keys |
-| User ↔ role | **One role per user** (`User.roleId`) |
-| Per-user permission overrides | **No** |
-| Dashboards | **One** shell at `/admin` |
-| Super Admin | System role — cannot delete; cannot remove last active superadmin |
-| Role delete | Blocked while users assigned — reassign first |
-| Security | `requirePermission(key)` on every page, action, API — nav hide is cosmetic only |
+
+| Topic                         | Decision                                                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Who invents permission keys   | Developers only — Super Admin cannot invent keys                                                                     |
+| Who creates roles             | Super Admin — combinations of existing keys                                                                          |
+| User ↔ role                   | **One role per user** (`User.roleId`)                                                                                |
+| Per-user permission overrides | **No**                                                                                                               |
+| Dashboards                    | **One** shell at `/admin`                                                                                            |
+| Branches                      | **Single site** (Doxa Nairobi). Sweet1ne multi-branch scope is out of scope — permission = *what*; no *where* table. |
+| Super Admin                   | System role — cannot delete; cannot remove last active superadmin                                                    |
+| Role delete                   | Blocked while users assigned — reassign first                                                                        |
+| Security                      | `requirePermission(key)` on every page, action, API — nav hide is cosmetic only                                      |
+
 
 ---
+
+
 
 ## C3. Schema
 
@@ -502,6 +580,8 @@ model RbacMeta {
 
 ---
 
+
+
 ## C4. Permission registry
 
 ```ts
@@ -551,7 +631,11 @@ Sync on deploy: upsert registry keys; **report** orphaned `RolePermission` rows 
 
 ---
 
+
+
 ## C5. Resolution & enforcement
+
+
 
 ### JWT (lightweight)
 
@@ -567,10 +651,12 @@ type AppMetadataPayload = {
 }
 ```
 
-| Change | Mechanism |
-|--------|-----------|
-| User’s role changed | Re-sync that user’s `app_metadata` |
+
+| Change                     | Mechanism                                       |
+| -------------------------- | ----------------------------------------------- |
+| User’s role changed        | Re-sync that user’s `app_metadata`              |
 | Role’s permissions changed | Bump `RbacMeta.version` — all caches invalidate |
+
 
 Cache key: `roleId + ':' + rbacVersion`
 
@@ -607,9 +693,15 @@ flowchart TD
   Check -->|yes| Run[Business logic]
 ```
 
+
+
 ---
 
+
+
 ## C6. Admin UX
+
+
 
 ### Role editor
 
@@ -621,25 +713,33 @@ List users → assign **one** role by email → `staff:role:assign` → audit �
 
 ### Guardrails
 
-| Rule | Why |
-|------|-----|
-| Cannot strip own last `staff:role:assign` | Self-lockout |
-| Cannot delete Super Admin / last active superadmin | Recovery |
-| Cannot delete role with users assigned | Force reassign first |
-| Deactivate = status change, not role wipe | Audit history |
+
+| Rule                                               | Why                  |
+| -------------------------------------------------- | -------------------- |
+| Cannot strip own last `staff:role:assign`          | Self-lockout         |
+| Cannot delete Super Admin / last active superadmin | Recovery             |
+| Cannot delete role with users assigned             | Force reassign first |
+| Deactivate = status change, not role wipe          | Audit history        |
+
 
 ---
 
-## C7. Seeded roles (SDD)
 
-| Role | Typical permissions |
-|------|---------------------|
-| Director / Owner | All (or `isSuperAdmin`) |
-| Office Clerk | client:*, booking:create/dispatch, payment:record |
-| Yard Staff | booking:view/condition/dispatch/checkin, vehicle:view |
-| Accountant | payment:*, expense:*, owner:payout/statement, report:export |
+
+## C7. Seeded roles
+
+
+| Role                               | Seeded?                                                   |
+| ---------------------------------- | --------------------------------------------------------- |
+| **Super Admin** (system)           | **Yes** — only staff account at seed; all permission keys |
+| Clerk / Yard / Accountant / custom | **No** — Super Admin creates roles in `/admin/staff`      |
+
+
+Same Sweet1ne rule: unlimited admin-created roles; no code deploy to add a role name.
 
 ---
+
+
 
 ## C8. One shell (LEGO)
 
@@ -657,23 +757,31 @@ Same page, different buttons: Yard Staff sees View; Director sees Edit/Delete �
 
 ---
 
+
+
 ## C9. Package split
 
-| Module | Knowledge |
-|--------|-----------|
-| `lib/rbac/engine.ts` | Resolve permissions for a `roleId` |
-| `lib/rbac/cache.ts` | Versioned cache |
-| `lib/rbac/require.ts` | `requirePermission` |
-| `lib/rbac/nav.ts` | Filter nav/widgets |
-| `lib/rbac/registry.ts` | **Car-hire keys only** |
+
+| Module                 | Knowledge                          |
+| ---------------------- | ---------------------------------- |
+| `lib/rbac/engine.ts`   | Resolve permissions for a `roleId` |
+| `lib/rbac/cache.ts`    | Versioned cache                    |
+| `lib/rbac/require.ts`  | `requirePermission`                |
+| `lib/rbac/nav.ts`      | Filter nav/widgets                 |
+| `lib/rbac/registry.ts` | **Car-hire keys only**             |
+
 
 ---
+
+
 
 ## C10. CI guard
 
 Enumerate every `'use server'` export and route handler; assert `requirePermission` (allowlist: login, auth callback, M-Pesa callback, health).
 
 ---
+
+
 
 ## C11. Test criteria
 
@@ -689,15 +797,19 @@ Enumerate every `'use server'` export and route handler; assert `requirePermissi
 
 ---
 
+
+
 ## Related docs
 
-| Doc | Role |
-|-----|------|
+
+| Doc                                              | Role                                                   |
+| ------------------------------------------------ | ------------------------------------------------------ |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Feature inventory (plain English + technical) + stages |
-| [DATA_MODEL.md](DATA_MODEL.md) | Tables / ERD / seed accounts |
-| [DESIGN.md](DESIGN.md) | UI tokens |
-| [README](../README.md) | Product overview |
-| `.env.local.example` | Env placeholders |
-| `prisma/schema.prisma` | Data model source of truth |
+| [DATA_MODEL.md](DATA_MODEL.md)                   | Tables / ERD / seed accounts                           |
+| [DESIGN.md](DESIGN.md)                           | UI tokens                                              |
+| [README](../README.md)                           | Product overview                                       |
+| `.env.local.example`                             | Env placeholders                                       |
+| `prisma/schema.prisma`                           | Data model source of truth                             |
+
 
 Prepared for **Doxa Motor Solutions** · SpectreTech Limited · SP-DOXA-2026-001

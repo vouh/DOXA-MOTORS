@@ -60,6 +60,8 @@ for (const user of users) {
     isSuperAdmin: user.isSuperAdmin,
     dbUserId: user.id,
     fullName: user.fullName,
+    roleId: user.roleId,
+    rbacVersion: 1,
   }
 
   if (user.authUserId) {

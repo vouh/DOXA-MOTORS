@@ -391,15 +391,11 @@ In-app and push notification records.
 
 | Email | Password | Role | Dashboard |
 |-------|----------|------|-----------|
-| `superadmin@doxacarhire.com` | `SuperAdmin@2026!` | ADMIN (Super Admin) | `/admin` |
-| `admin@doxacarhire.com` | `ChangeMe123!` | ADMIN | `/admin` |
-| `manager@doxacarhire.com` | `ChangeMe123!` | EXECUTIVE | `/dashboard/executive` |
-| `finance@doxacarhire.com` | `ChangeMe123!` | TREASURER | `/dashboard/treasurer` |
-| `dispatch@doxacarhire.com` | `ChangeMe123!` | SECRETARY | `/dashboard/secretary` |
-| `fleet@doxacarhire.com` | `ChangeMe123!` | ORGANIZER | `/dashboard/organizer` |
-| `staff@doxacarhire.com` | `ChangeMe123!` | MEMBER | `/dashboard/member` |
+| `superadmin@doxacarhire.com` | `SuperAdmin@2026!` | Super Admin | `/admin` |
 
-Admin login: `/admin/login`. Staff login: `/login`.
+No other staff users are seeded. Create Clerk / Yard / Accountant (or custom) roles and invite staff from `/admin/staff`.
+
+Admin login: `/admin/login`.
 
 ---
 

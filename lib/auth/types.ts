@@ -7,7 +7,10 @@ export type AuthUser = {
   email: string
   fullName: string
   initials: string
+  /** @deprecated Prefer roleName from Role */
   staffRole: StaffRole
+  roleId?: string | null
+  roleName?: string | null
   isSuperAdmin: boolean
   status?: UserStatus
 }

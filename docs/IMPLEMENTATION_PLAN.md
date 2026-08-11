@@ -41,14 +41,14 @@
 | 11 | Private file storage | ID scans, licences, logbooks stored privately (not a public link anyone can guess). | `attachments` table; `lib/storage/upload.ts`; bucket `car-hire-docs`; signed URLs | 40% | Wire uploads on client/owner forms (Stages 4–5) |
 | 12 | Permission list (fixed) | List of allowed actions in the product (e.g. “dispatch vehicle”). Admin cannot invent new action types—only developers add those. | `lib/rbac/registry.ts` keys like `booking:dispatch`, `client:lookup` | 0% | Implement Stage 2 |
 | 13 | Roles (admin-created) | Director creates named roles (Clerk, Yard, “Night Supervisor”), ticks which actions each role may do, assigns **one role per staff email**. | Prisma `Role`, `RolePermission`, `User.roleId`; `/admin/staff` | 5% | Persist UI; replace demo matrix |
-| 14 | Server permission check | Even if someone types a URL or calls an API, the server blocks them without permission. | `requirePermission()` in `lib/rbac/require.ts`; every `app/actions/car-hire.ts` action | 0% | Stage 3 retrofit |
+| 14 | Server permission check | Even if someone types a URL or calls an API, the server blocks them without permission. | `requirePermission()` in `lib/rbac/require.ts`; every `app/actions/car-hire.ts` action | 90% | CI unguarded-action test; audit on money/settings |
 | 15 | One admin workspace | Everyone uses the same `/admin` app; menu items appear/hide by role. No separate “yard website” vs “finance website”. | `app/admin/(app)/*`; `lib/rbac/nav.ts` | 15% | Filter NAV + widgets by permissions |
 | 16 | Staff invite / deactivate | Director adds staff by email; can suspend so they cannot log in. No public self-signup for staff. | `app/actions/staff.ts`; Supabase Admin `createUser`; status `ACTIVE`/`SUSPENDED` | 40% | Full invite form on staff page |
 | 17 | Audit trail | Important changes (penalty rules, roles, money) record who did what and when. | `audit_logs`; `lib/audit.ts` `writeAudit` | 30% | Call from all car-hire money/settings actions |
 | 18 | Client registration | Staff can **add** a hirer: name, phone, email, National ID/passport, licence, address, next of kin, employer, second contact. | `CarClient`; `createCarClient`; Zod `clientSchema`; `/admin/clients` | 70% | Stronger KE phone/ID Zod rules |
 | 19 | Client ID & licence files | Staff can **upload** ID and licence copies; only staff can open them. | `Attachment` kind `id_copy` / `licence_copy`; private bucket | 0% | Stage 4 UI |
 | 20 | Client lookup | Staff can **find** a client by National ID or phone (for vetting at the counter). | Query on `idOrPassportNo` / `phone`; permission `client:lookup` | 40% | Dedicated lookup + auth |
-| 21 | Suspend / activate client | Staff can **block** a bad client so new bookings are refused; can **reactivate** later. | `ClientStatus`; `setCarClientStatus` | 80% | Hard-block booking create when suspended |
+| 21 | Suspend / activate client | Staff can **block** a bad client so new bookings are refused; can **reactivate** later. | `ClientStatus`; `setCarClientStatus`; hard-block in `createCarBooking` | 95% | — |
 | 22 | Vehicle register | Staff can **add/view** cars: type (saloon, SUV, van, pickup, economy), daily rate, status (parked, hired, …). | `CarVehicle`; `VehicleType`; `/admin/vehicles` | 85% | Edit vehicle UI |
 | 23 | Owner register | Staff can **add** car owners: ID, KRA PIN, bank, M-Pesa, next of kin. | `CarOwner`; `createCarOwner`; `/admin/owners` | 75% | Uploads; edit |
 | 24 | Owner document uploads | Staff can **upload** logbook and signed agreement privately. | `Attachment` for owner; private storage | 0% | Stage 5 |
@@ -69,7 +69,7 @@
 | 39 | Owner payout math | For a period, system totals **money received** for that owner’s cars, minus expenses/commission, to get net pay. | `generateOwnerPayout`; `ownerSettlement()` | 45% | Use payments not `totalCharge`; allow negative net |
 | 40 | Payout workflow | Draft → approve → mark paid (with date/reference). | `OwnerPayout` `PayoutStatus` | 40% | Paid UI + owner-paid message |
 | 41 | Doc expiry tracking | Track insurance/inspection expiry per car; flag when ~7 days left. | `VehicleDocument`; `alertSentAt` | 70% | Exact 7-day boundary tests |
-| 42 | Daily scheduler | Background job: hire ending soon (2h), overdue, document expiry. Must use a secret key. | `GET /api/cron/car-hire` + `CRON_SECRET` | 70% | Already fail-closed |
+| 42 | Daily scheduler | Background job: hire ending soon (2h), overdue, document expiry. Must use a secret key. | `GET /api/cron/car-hire` + `CRON_SECRET` (503 if unset) | 90% | — |
 | 43 | Message queue | Every SMS/email attempt is stored with status (queued / sent / failed). | `MessageLog` | 50% | Delivery worker |
 | 44 | Email (Resend) | Prefer email when client has a valid address; branded Doxa emails. | `resend` package; `lib/email/resend.ts` | 10% | Car-hire templates |
 | 45 | SMS + Sender ID | If no email, send SMS with company Sender ID. | Env `SMS_*`; gateway client (not built) | 0% | Integrate provider |
@@ -93,7 +93,7 @@
 | 63 | Report: booking history | Full hire history export. | CSV exists | 20% | PDF/Excel |
 | 64 | Report: invoice / receipt | Client-facing invoice and payment receipt. | `lib/pdf/receipt.ts` hire receipt scaffold | 5% | Full product |
 | 65 | Report: hire agreement | Printable hire agreement PDF. | Template + approved wording | 0% | Client wording |
-| 66 | Secure exports | Only logged-in allowed staff can download reports (no open links). | Guard `/api/export/car-hire` | 0% | Stage 3 |
+| 66 | Secure exports | Only logged-in allowed staff can download reports (no open links). | Guard `/api/export/car-hire` + hide Export UI without `report:export` | 90% | — |
 | 67 | Director dashboard | First screen: cars out, idle, due today, overdue, money today/month, who owes, docs expiring. | `app/admin/(app)/page.tsx` Prisma aggregates | 75% | Widget unit tests |
 | 68 | Dashboard refresh | After a new booking/payment, figures update when you refresh the page. | Server Components revalidate | 60% | Optional live later |
 | 69 | Import old lists | One-time load of existing vehicle/owner/client lists from Word/paper into the system. | Import scripts + same Zod as UI | 0% | Stage 14 |
@@ -101,7 +101,7 @@
 | 71 | Training & UAT | Train Director, Clerk, Yard, Accountant; get sign-off. | UAT scripts; Playwright green | 0% | Stage 16 |
 | 72 | Security hardening | Final check: private files, no leaked secrets, HTTPS, audits on. | SEC-1…7 checklist | 15% | Stage 15 |
 
-**Rough overall:** ~40% — booking/CRUD ahead; RBAC enforcement, messaging send, reports behind.
+**Rough overall:** ~45% — booking/CRUD + Stage 3 enforcement ahead; messaging send, reports behind.
 
 ---
 
@@ -274,9 +274,9 @@ Wire every existing car-hire surface to RBAC; close critical open endpoints.
 
 ### Outstanding work
 
-- Guard all `app/actions/car-hire.ts` actions
-- Lock `/api/export/car-hire` and car-hire APIs
-- Cron: require `CRON_SECRET` (fail closed)
+- ~~Guard all `app/actions/car-hire.ts` actions~~
+- ~~Lock `/api/export/car-hire` and STK car-hire API~~
+- ~~Cron: require `CRON_SECRET` (fail closed)~~
 - `writeAudit` + `updatedBy` on penalty/role/money changes
 - Layout/session identity (no hardcoded Super Admin)
 
@@ -296,7 +296,7 @@ Wire every existing car-hire surface to RBAC; close critical open endpoints.
 | Risk                                          | Fix                                            |
 | --------------------------------------------- | ---------------------------------------------- |
 | **Unauthenticated CSV export of clients/IDs** | `requirePermission('report:export')` + session |
-| Cron callable by anyone if secret unset       | Mandatory bearer; 401 if missing/wrong         |
+| Cron callable by anyone if secret unset       | Mandatory bearer; 503 if secret missing        |
 | Yard Staff hits Director settings by URL      | Server deny + permission on page data load     |
 
 
@@ -304,11 +304,12 @@ Wire every existing car-hire surface to RBAC; close critical open endpoints.
 
 ### Test criteria
 
-- [ ] Export without auth → 401
-- [ ] Yard Staff cannot edit penalty rules via action
-- [ ] Clerk cannot call payout-only APIs
+- [x] Export without auth → 401
+- [x] Yard Staff cannot edit penalty rules via action (`settings:penalty_rules:edit`)
+- [x] Staff without `payment:stk` / `owner:payout` cannot call those actions/APIs
 - [ ] Audit row on penalty change
-- [ ] Direct `/admin/staff` without `staff:view` blocked
+- [x] Direct `/admin/staff` without `staff:view` blocked
+- [x] Suspended client hard-blocked on `createCarBooking`
 
 ---
 

@@ -8,11 +8,31 @@ import { prisma } from '@/lib/prisma'
 import { ADMIN_HOME } from '@/lib/auth/types'
 import { syncUserMetadata } from '@/lib/auth/session'
 import { normalizeEmail, toAuthUser } from '@/lib/auth/helpers'
+import { writeAudit } from '@/lib/audit'
+import {
+  clearLoginFailures,
+  clientIpFromRequest,
+  loginLockRemaining,
+  recordLoginFailure,
+} from '@/lib/auth/login-throttle'
 
 const bodySchema = z.object({
   email: z.string().email().transform(normalizeEmail),
   password: z.string().min(1),
 })
+
+function lockedResponse(retryAfterSec: number) {
+  const minutes = Math.max(1, Math.ceil(retryAfterSec / 60))
+  return NextResponse.json(
+    {
+      error: `Too many failed sign-in attempts. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+    },
+    {
+      status: 429,
+      headers: { 'Retry-After': String(retryAfterSec) },
+    },
+  )
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,6 +43,13 @@ export async function POST(req: Request) {
     }
 
     const email = parsed.data.email
+    const ip = clientIpFromRequest(req)
+
+    const remaining = loginLockRemaining(email, ip)
+    if (remaining > 0) {
+      return lockedResponse(remaining)
+    }
+
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -38,6 +65,18 @@ export async function POST(req: Request) {
           { status: 401 },
         )
       }
+
+      const throttle = recordLoginFailure(email, ip)
+      await writeAudit({
+        action: 'auth.login_failed',
+        entity: 'Auth',
+        meta: { email, ip, locked: throttle.locked },
+      })
+
+      if (throttle.locked) {
+        return lockedResponse(throttle.retryAfterSec)
+      }
+
       const knownProfile = await prisma.user.findFirst({
         where: { email: { equals: email, mode: 'insensitive' } },
         select: { id: true },
@@ -62,6 +101,7 @@ export async function POST(req: Request) {
 
     if (!profile) {
       await supabase.auth.signOut()
+      recordLoginFailure(email, ip)
       return NextResponse.json(
         { error: 'No staff profile found. Ask a Director to invite you.' },
         { status: 403 },
@@ -92,6 +132,15 @@ export async function POST(req: Request) {
         { status: 403 },
       )
     }
+
+    clearLoginFailures(email, ip)
+    await writeAudit({
+      userId: profile.id,
+      action: 'auth.login',
+      entity: 'User',
+      entityId: profile.id,
+      meta: { email, ip },
+    })
 
     const user = toAuthUser(profile)
     return NextResponse.json({

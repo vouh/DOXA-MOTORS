@@ -2,16 +2,21 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { requireDirector, requireActiveStaff, syncUserMetadata } from '@/lib/auth/session'
+import { syncUserMetadata } from '@/lib/auth/session'
 import { writeAudit } from '@/lib/audit'
-import type { StaffRole, UserStatus } from '@/lib/auth/types'
+import type { UserStatus } from '@/lib/auth/types'
 import { createServerClient } from '@/lib/supabase-server'
 import { normalizeEmail } from '@/lib/auth/helpers'
+import { requirePermission, ForbiddenError } from '@/lib/rbac/require'
+import { PERMISSIONS } from '@/lib/rbac/registry'
 import { z } from 'zod'
+import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
 
 type ActionResult = { ok: true; message: string } | { ok: false; message: string }
 
 function fail(error: unknown): ActionResult {
+  if (error instanceof ForbiddenError) return { ok: false, message: error.message }
+  if (isConnectionError(error)) return { ok: false, message: friendlyErrorMessage(error) }
   return { ok: false, message: error instanceof Error ? error.message : 'Operation failed.' }
 }
 
@@ -19,14 +24,21 @@ const inviteSchema = z.object({
   email: z.string().email().transform(normalizeEmail),
   fullName: z.string().min(2),
   phone: z.string().optional(),
-  staffRole: z.enum(['DIRECTOR', 'CLERK', 'YARD', 'ACCOUNTANT']),
+  roleId: z.string().min(1),
   password: z.string().min(8),
 })
 
 export async function inviteStaff(formData: FormData): Promise<ActionResult> {
   try {
-    const actor = await requireDirector()
+    const actor = await requirePermission(PERMISSIONS.STAFF_MANAGE)
     const data = inviteSchema.parse(Object.fromEntries(formData.entries()))
+
+    const role = await prisma.role.findUnique({ where: { id: data.roleId } })
+    if (!role || !role.active) throw new Error('Select a valid role.')
+    if (role.isSystem && !actor.isSuperAdmin) {
+      throw new Error('Only a Super Admin can assign the Super Admin role.')
+    }
+
     const existing = await prisma.user.findFirst({
       where: { email: { equals: data.email, mode: 'insensitive' } },
     })
@@ -47,10 +59,11 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
           email: data.email,
           fullName: data.fullName,
           phone: data.phone || null,
-          staffRole: data.staffRole,
+          staffRole: 'CLERK',
+          roleId: role.id,
           status: 'ACTIVE',
           authUserId: created.user.id,
-          isSuperAdmin: false,
+          isSuperAdmin: role.isSystem,
         },
       })
     } catch (dbError) {
@@ -64,10 +77,11 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
       action: 'staff.invite',
       entity: 'User',
       entityId: user.id,
-      meta: { email: user.email, staffRole: user.staffRole },
+      meta: { email: user.email, roleId: role.id, roleName: role.name },
     })
     revalidatePath('/admin/staff')
-    return { ok: true, message: `Invited ${user.email}.` }
+    revalidatePath('/admin/profile')
+    return { ok: true, message: `Invited ${user.email} as ${role.name}.` }
   } catch (error) {
     return fail(error)
   }
@@ -75,8 +89,17 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
 
 export async function setStaffStatus(id: string, status: UserStatus): Promise<ActionResult> {
   try {
-    const actor = await requireDirector()
+    const actor = await requirePermission(PERMISSIONS.STAFF_MANAGE)
     if (actor.id === id && status !== 'ACTIVE') throw new Error('You cannot deactivate yourself.')
+    const target = await prisma.user.findUnique({ where: { id } })
+    if (!target) throw new Error('Staff account not found.')
+    if (target.isSuperAdmin && !actor.isSuperAdmin) {
+      throw new Error('Only a Super Admin can change another Super Admin’s status.')
+    }
+    if (target.isSuperAdmin && status !== 'ACTIVE') {
+      const supers = await prisma.user.count({ where: { isSuperAdmin: true, status: 'ACTIVE' } })
+      if (supers <= 1) throw new Error('Cannot disable the last active Super Admin.')
+    }
     const user = await prisma.user.update({ where: { id }, data: { status } })
     await syncUserMetadata(user)
     await writeAudit({
@@ -93,27 +116,47 @@ export async function setStaffStatus(id: string, status: UserStatus): Promise<Ac
   }
 }
 
-export async function setStaffRole(id: string, staffRole: StaffRole): Promise<ActionResult> {
+export async function resetStaffPassword(formData: FormData): Promise<ActionResult> {
   try {
-    const actor = await requireDirector()
-    const user = await prisma.user.update({ where: { id }, data: { staffRole } })
-    await syncUserMetadata(user)
+    const actor = await requirePermission(PERMISSIONS.STAFF_MANAGE)
+    const schema = z.object({
+      userId: z.string().min(1),
+      password: z.string().min(8),
+    })
+    const data = schema.parse({
+      userId: formData.get('userId'),
+      password: formData.get('password'),
+    })
+
+    const target = await prisma.user.findUnique({ where: { id: data.userId } })
+    if (!target) throw new Error('Staff account not found.')
+    if (!target.authUserId) throw new Error('This staff account has no Auth login yet.')
+    if (target.isSuperAdmin && actor.id !== target.id && !actor.isSuperAdmin) {
+      throw new Error('Only a Super Admin can reset another Super Admin password.')
+    }
+
+    const admin = createServerClient()
+    const { error } = await admin.auth.admin.updateUserById(target.authUserId, {
+      password: data.password,
+    })
+    if (error) throw new Error(error.message)
+
     await writeAudit({
       userId: actor.id,
-      action: 'staff.role',
+      action: 'staff.password_reset',
       entity: 'User',
-      entityId: id,
-      meta: { staffRole },
+      entityId: target.id,
+      meta: { email: target.email },
     })
     revalidatePath('/admin/staff')
-    return { ok: true, message: `Role updated to ${staffRole}.` }
+    return { ok: true, message: `Password updated for ${target.email}. Share it securely with them.` }
   } catch (error) {
     return fail(error)
   }
 }
 
 export async function listStaff() {
-  await requireActiveStaff()
+  await requirePermission(PERMISSIONS.STAFF_VIEW)
   return prisma.user.findMany({
     orderBy: { createdAt: 'asc' },
     select: {
@@ -122,9 +165,11 @@ export async function listStaff() {
       fullName: true,
       phone: true,
       staffRole: true,
+      roleId: true,
       status: true,
       isSuperAdmin: true,
       createdAt: true,
+      role: { select: { id: true, name: true } },
     },
   })
 }

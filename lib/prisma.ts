@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { isDatabaseConfigured } from '@/lib/database-config'
+import { isDatabaseConfigured, withPrismaConnectionParams } from '@/lib/database-config'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -37,11 +37,16 @@ function createTestPrisma(): PrismaClient {
   return proxy
 }
 
+function createPrisma() {
+  const url = withPrismaConnectionParams(process.env.DATABASE_URL)
+  return new PrismaClient({
+    datasources: url ? { db: { url } } : undefined,
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  })
+}
+
 export const prisma = isDatabaseConfigured()
-  ? globalForPrisma.prisma ??
-    new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    })
+  ? globalForPrisma.prisma ?? createPrisma()
   : createTestPrisma()
 
 if (process.env.NODE_ENV !== 'production' && isDatabaseConfigured()) globalForPrisma.prisma = prisma
