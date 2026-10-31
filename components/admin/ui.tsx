@@ -46,9 +46,10 @@ export function Btn({
   )
 }
 
-export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+export function Card({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      {...props}
       className={`rounded-2xl border border-outline-variant bg-white shadow-[0_12px_40px_rgba(29,34,53,0.08)] dark:border-[#1e3a5f] dark:bg-[#0c1c38] dark:shadow-[0_12px_40px_rgba(2,10,28,0.45)] ${className}`}
     >
       {children}

@@ -83,6 +83,7 @@ export default async function SettingsPage() {
     DEFAULT_LOYALTY_CONFIG,
   ]
   const [users, roles, audits] = staffLoaded.data ?? [[], [], []]
+  const editableRoles = [...roles]
   const roleOptions = roles.map((r) => ({ id: r.id, name: r.name, isSystem: r.isSystem }))
   const pageError = hireLoaded.error || staffLoaded.error
 
@@ -114,7 +115,7 @@ export default async function SettingsPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
                 Roles
               </h2>
-              <RoleEditor roles={roles} />
+              <RoleEditor roles={editableRoles} />
             </section>
           ) : null}
 

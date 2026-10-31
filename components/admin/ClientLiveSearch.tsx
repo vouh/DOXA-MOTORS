@@ -327,7 +327,7 @@ export default function ClientLiveSearch({ canExport = false }: Props) {
                                 <span className="material-symbols-outlined text-[20px]">event_available</span>
                               </a>
                             ) : null}
-                            <ClientViewButton client={client} />
+                            <ClientViewButton client={{ ...client, loyaltyPoints: 0 }} />
                           </li>
                         ))}
                       </ul>

@@ -71,7 +71,9 @@ export async function uploadPrivateObject(input: UploadInput) {
   const admin = createServerClient()
   await ensurePrivateBucket(bucket)
 
-  const body = input.bytes instanceof Buffer ? input.bytes : Buffer.from(input.bytes)
+  const body = Buffer.isBuffer(input.bytes)
+    ? input.bytes
+    : Buffer.from(input.bytes as ArrayBuffer)
   if (body.length > MAX_FILE_BYTES) {
     throw new Error('File must be 5 MB or smaller after compression.')
   }

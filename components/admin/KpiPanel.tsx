@@ -168,7 +168,7 @@ export default function KpiPanel({
     [money],
   )
 
-  const chartOptions: ChartOptions = {
+  const chartOptions: ChartOptions<'doughnut'> & ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {

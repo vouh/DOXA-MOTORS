@@ -257,7 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const visibleNav =
     sessionUser?.isSuperAdmin || !sessionUser?.permissions?.length
       ? NAV_ITEMS
-      : filterNav(sessionUser.permissions)
+      : filterNav(new Set(sessionUser.permissions))
 
   const now = new Date()
   const hour = now.getHours()

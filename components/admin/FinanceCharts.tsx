@@ -197,7 +197,7 @@ export default function FinanceCharts({
     [series, trendType],
   )
 
-  const mixOptions: ChartOptions<'pie' | 'doughnut'> = {
+  const mixOptions: ChartOptions<'pie'> & ChartOptions<'doughnut'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -218,7 +218,7 @@ export default function FinanceCharts({
     },
   }
 
-  const trendOptions: ChartOptions<'line' | 'bar'> = {
+  const trendOptions: ChartOptions<'line'> & ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
