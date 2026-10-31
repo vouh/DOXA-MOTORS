@@ -165,6 +165,7 @@ erDiagram
 | `ClientStatus` | `ACTIVE`, `SUSPENDED` | `clients.status` |
 | `VehicleStatus` | `AVAILABLE`, `HIRED`, `MAINTENANCE`, `RETIRED` | `vehicles.vehicleStatus` |
 | `BookingStatus` | `ACTIVE`, `EXTENDED`, `RETURNED`, `CANCELLED` | `bookings.bookingStatus` |
+| `ExtraChargeStage` | `BOOKING`, `RETURN` | `booking_extra_charges.stage` |
 | `PaymentMethod` | `CASH`, `MPESA`, `BANK`, `OTHER` | `payments.paymentMethod` |
 | `ExpenseCategory` | `FUEL`, `MAINTENANCE`, `INSURANCE`, `REPAIR`, `OTHER` | `expenses.category` |
 
@@ -277,7 +278,24 @@ A single hire record from dispatch to return.
 | `notes` | String? | |
 | `createdAt` / `updatedAt` | DateTime | |
 
-**Flows:** Create booking → vehicle `HIRED` → extensions? → check-in → `RETURNED` → vehicle `AVAILABLE` → payment record.
+**Flows:** Create booking → vehicle hired → optional extras at booking → extensions? → check-in (optional return extras) → `RETURNED` → vehicle `AVAILABLE` → payment record.
+
+---
+
+### `booking_extra_charges` (model `BookingExtraCharge`)
+
+Optional add-on costs on a hire (fuel, cleaning, a split, etc.).
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `id` | String | PK |
+| `bookingId` | String FK → car_bookings | |
+| `stage` | ExtraChargeStage | `BOOKING` or `RETURN` |
+| `description` | String | Short sanitized text (max 80) |
+| `amount` | Float | KSh, must be > 0 |
+| `createdAt` | DateTime | |
+
+Comments on bookings are capped at 500 characters, allow line breaks, and strip `# @ <script>` and similar before save. Writes go through Prisma (parameterized), so SQL injection is not possible via these fields.
 
 ---
 
@@ -393,9 +411,25 @@ In-app and push notification records.
 |-------|----------|------|-----------|
 | `superadmin@doxacarhire.com` | `SuperAdmin@2026!` | Super Admin | `/admin` |
 
-No other staff users are seeded. Create Clerk / Yard / Accountant (or custom) roles and invite staff from `/admin/staff`.
+No other staff users are seeded. Create Clerk / Yard / Accountant (or custom) roles and invite staff from `/admin/settings`.
 
 Admin login: `/admin/login`.
+
+---
+
+## Loyalty & security fields (current)
+
+| Table / model | Fields | Notes |
+|---------------|--------|--------|
+| `users` | `suspiciousScore`, `consecutiveDeletes`, `lastDeleteAt`, `consecutiveDeleteAlerted` | Delete-risk scoring — see [SECURITY.md](./SECURITY.md) |
+| `car_clients` | `loyaltyPoints` | Cleared to 0 on suspend |
+| `car_bookings` | `loyaltyPointsEarned`, `loyaltyPointsRedeemed`, `loyaltyDiscountKes` | Snapshots / discount applied |
+| `condition_checks` | `conditionRating`, `decreaseComment` | Return rating 1–5 |
+| `loyalty_ledger` | earn / redeem / adjust / recalc rows | `sourceKey` unique for earn idempotency |
+| `car_hire_settings` | JSON keys `category_starting_prices`, `loyalty_config` | Editable at `/admin/settings` |
+| `staff_notifications` | inbox rows | Includes `kind: security` alerts |
+
+Earn gate: booking **RETURNED**, balance **0**, client **ACTIVE**.
 
 ---
 

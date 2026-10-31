@@ -39,4 +39,22 @@ describe('car-hire calculations', () => {
       netPay: 10_000,
     })
   })
+
+  it('lets net go negative when the owner owes Doxa', () => {
+    expect(
+      ownerSettlement({
+        bookingRevenue: [2_000],
+        expenseAmounts: [3_000],
+        commissionType: 'PERCENTAGE',
+        commissionValue: 30,
+        recurringDeduction: 0,
+      }),
+    ).toEqual({
+      grossEarnings: 2_000,
+      commission: 600,
+      totalExpenses: 3_000,
+      deductions: 0,
+      netPay: -1_600,
+    })
+  })
 })

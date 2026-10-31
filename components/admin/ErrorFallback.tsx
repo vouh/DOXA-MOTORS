@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
+import { friendlyErrorMessage, isConnectionError, logDevError } from '@/lib/errors'
 
 export default function ErrorFallback({
   error,
@@ -16,19 +16,13 @@ export default function ErrorFallback({
   const message = friendlyErrorMessage(error)
 
   useEffect(() => {
-    console.error('[ErrorBoundary]', error)
+    logDevError('ErrorBoundary', error)
   }, [error])
 
   return (
     <div className="flex min-h-[50vh] items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl border border-outline-variant bg-white p-6 text-center shadow-[0_16px_48px_rgba(4,59,169,0.12)] dark:border-[#1e3a5f] dark:bg-[#0c1c38]">
-        <div
-          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
-            connection
-              ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-              : 'bg-[#E90809]/10 text-[#E90809]'
-          }`}
-        >
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#E90809]/10 text-[#E90809]">
           <span className="material-symbols-outlined text-[26px]">
             {connection ? 'cloud_off' : 'error'}
           </span>
@@ -39,7 +33,7 @@ export default function ErrorFallback({
         <p className="mt-2 text-sm leading-relaxed text-on-surface-variant dark:text-blue-200/60">
           {message}
         </p>
-        {error.digest ? (
+        {error.digest && process.env.NODE_ENV === 'development' ? (
           <p className="mt-2 font-mono text-[10px] text-on-surface-variant/70 dark:text-blue-200/35">
             Ref {error.digest}
           </p>

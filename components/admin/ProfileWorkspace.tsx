@@ -74,11 +74,11 @@ export default function ProfileWorkspace({
 
             <div className="mt-4 flex justify-between gap-2">
               <Link
-                href="/admin/staff"
+                href="/admin/settings"
                 className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px] text-secondary">group</span>
-                Staff
+                <span className="material-symbols-outlined text-[14px] text-secondary">settings</span>
+                Settings
               </Link>
               <button
                 type="button"
@@ -220,14 +220,14 @@ export default function ProfileWorkspace({
                 <section className="space-y-3 border-t border-outline-variant pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-on-surface">Invite staff account</h3>
-                    <Link href="/admin/staff" className="text-xs text-primary font-medium hover:underline">
-                      Manage roles on Staff →
+                    <Link href="/admin/settings" className="text-xs text-primary font-medium hover:underline">
+                      Manage roles in Settings →
                     </Link>
                   </div>
                   <p className="text-sm text-on-surface-variant">
                     Creates email + password login with one assigned role. Manage permission matrices on{' '}
-                    <Link href="/admin/staff" className="text-primary font-medium hover:underline">
-                      Staff &amp; Roles
+                    <Link href="/admin/settings" className="text-primary font-medium hover:underline">
+                      Settings
                     </Link>
                     .
                   </p>

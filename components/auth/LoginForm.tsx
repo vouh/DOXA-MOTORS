@@ -3,17 +3,18 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { type FormEvent, useEffect, useState } from 'react'
 import BrandLogo from '@/components/brand/BrandLogo'
+import { useFeedback } from '@/components/ui/FeedbackProvider'
 import { ADMIN_HOME, loginRequest, logoutRequest, meRequest, type AuthUser } from '@/lib/auth/client'
+import { friendlyErrorMessage, logDevError, classifyError, titleForErrorKind } from '@/lib/errors'
 
 export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showError, showFeedback, showSuccess } = useFeedback()
   const isDev = process.env.NODE_ENV === 'development'
   const [email, setEmail] = useState(isDev ? 'superadmin@doxacarhire.com' : '')
   const [password, setPassword] = useState(isDev ? 'SuperAdmin@2026!' : '')
   const [showPw, setShowPw] = useState(false)
-  const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'login' | 'forgot'>('login')
 
@@ -28,16 +29,22 @@ export default function LoginForm() {
 
   useEffect(() => {
     const err = searchParams.get('error')
-    if (err === 'suspended') setError('Your account has been suspended.')
-    else if (err === 'inactive') setError('Your account is not active.')
-    else if (err === 'not_invited') setError('No staff invite for this email.')
-    else if (err === 'oauth') setError('Sign-in failed. Try again.')
-  }, [searchParams])
+    if (!err) return
+    const map: Record<string, string> = {
+      suspended: 'Your account has been suspended. Contact a Director.',
+      inactive: 'Your account is not active. Contact a Director.',
+      not_invited: 'No staff invite for this email. Ask a Director to invite you.',
+      oauth: 'Sign-in failed. Please try again.',
+    }
+    showFeedback({
+      title: 'Sign-in issue',
+      message: map[err] || 'Sign-in failed. Please try again.',
+      tone: 'urgent',
+    })
+  }, [searchParams, showFeedback])
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setError('')
-    setInfo('')
     setLoading(true)
     try {
       if (mode === 'forgot') {
@@ -46,8 +53,15 @@ export default function LoginForm() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
         })
-        const data = await res.json()
-        setInfo(data.message || 'If that account exists, a reset link was sent.')
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showError(new Error(data.error || 'Could not send reset link.'), 'forgot-password')
+          return
+        }
+        showSuccess(
+          data.message || 'If that account exists, a reset link was sent.',
+          'Check your email',
+        )
         setMode('login')
         return
       }
@@ -55,14 +69,25 @@ export default function LoginForm() {
       const { redirectTo, status } = await loginRequest(email, password)
       if (status && status !== 'ACTIVE') {
         await logoutRequest()
-        setError('Your account is not active.')
+        showFeedback({
+          title: 'Sign-in issue',
+          message: 'Your account is not active. Contact a Director.',
+          tone: 'urgent',
+        })
         return
       }
       const next = searchParams.get('next')
       router.replace(next && next.startsWith('/') ? next : redirectTo || ADMIN_HOME)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      logDevError('login-form', err)
+      const kind = classifyError(err)
+      showFeedback({
+        title: titleForErrorKind(kind),
+        message: friendlyErrorMessage(err),
+        tone: 'urgent',
+        primaryLabel: kind === 'offline' || kind === 'connection' ? 'Got it' : 'Try again',
+      })
     } finally {
       setLoading(false)
     }
@@ -70,7 +95,6 @@ export default function LoginForm() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#D4E6FB] px-4 py-20">
-      {/* Same compact card size for Sign in + Reset password */}
       <div className="relative w-full max-w-[600px]">
         <div className="relative z-0 flex min-h-[360px] flex-col justify-center rounded-2xl bg-white px-8 pb-8 pt-16 shadow-[0_18px_50px_rgba(4,59,169,0.1)] md:ml-[200px] md:min-h-[340px] md:px-11 md:py-10 md:pl-12">
           <h1 className="text-[24px] font-semibold tracking-tight text-[#3a4150]">
@@ -126,17 +150,6 @@ export default function LoginForm() {
               </label>
             )}
 
-            {error && (
-              <p className="text-sm text-secondary" role="alert">
-                {error}
-              </p>
-            )}
-            {info && (
-              <p className="text-sm text-green-700" role="status">
-                {info}
-              </p>
-            )}
-
             <button
               type="submit"
               disabled={loading}
@@ -154,18 +167,13 @@ export default function LoginForm() {
             <button
               type="button"
               className="w-full text-[13px] text-[#a0a8b8] hover:text-primary"
-              onClick={() => {
-                setMode((m) => (m === 'login' ? 'forgot' : 'login'))
-                setError('')
-                setInfo('')
-              }}
+              onClick={() => setMode((m) => (m === 'login' ? 'forgot' : 'login'))}
             >
               {mode === 'forgot' ? 'Back to sign in' : 'Forgot password?'}
             </button>
           </form>
         </div>
 
-        {/* BLUE brand — 12px overhang top & bottom */}
         <aside
           className="absolute left-0 z-10 hidden w-[240px] flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-b from-[#3B8BFF] via-primary to-primary-container px-6 py-8 text-white shadow-[12px_4px_32px_rgba(4,59,169,0.32)] md:flex"
           style={{
@@ -188,7 +196,6 @@ export default function LoginForm() {
           </p>
         </aside>
 
-        {/* Mobile brand */}
         <div className="absolute -top-5 left-4 right-4 z-10 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-4 py-3 text-white shadow-lg md:hidden">
           <BrandLogo variant="compact" />
           <div>

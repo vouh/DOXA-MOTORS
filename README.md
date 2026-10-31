@@ -18,6 +18,8 @@
 | [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Feature inventory (plain English + technical, % done) + stages |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Tables, relationships, ERD, seed accounts |
 | [docs/DESIGN.md](docs/DESIGN.md) | UI / design tokens |
+| [docs/SECURITY.md](docs/SECURITY.md) | Suspicious-delete scoring, alerts, risk score |
+| Settings / Loyalty | `/admin/settings` — category start prices + loyalty metrics (editable) |
 
 ---
 
@@ -37,6 +39,11 @@ This platform replaces that with a connected digital system that:
 - Supports instant client lookup by **National ID** or **phone number**
 
 **Guiding principle:** the system should not merely store records — it should compute charges, calculate owner payouts, and dispatch the right message to the right person at the right time, so the director can run the business from anywhere with minimal manual work.
+
+### Security & loyalty (admin)
+
+- **Security:** Suspicious delete scoring emails Super Admins / test inbox when a staff risk score rises. Details: [docs/SECURITY.md](docs/SECURITY.md).
+- **Loyalty:** Points = category base + pts/day × days + hire amount + return rating bonus. Awarded only when the hire is **returned**, **balance is 0**, and the client is **active**. Suspended clients’ points drop to **0**. Configure metrics and category start prices under **Settings** (`/admin/settings`).
 
 ---
 

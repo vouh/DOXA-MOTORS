@@ -3,6 +3,7 @@ import { softQuery } from '@/lib/errors'
 import { Card, StatusPill, Th, PageShell } from '@/components/admin/ui'
 import KpiPanel from '@/components/admin/KpiPanel'
 import ServiceAlert from '@/components/admin/ServiceAlert'
+import BookingViewButton from '@/components/admin/BookingViewButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,15 @@ export default async function DashboardPage() {
       prisma.carVehicle.findMany(),
       prisma.carBooking.findMany({
         where: { status: { in: ['RESERVED', 'DISPATCHED', 'OVERDUE'] } },
-        include: { client: true, vehicle: true, payments: { where: { status: 'COMPLETED' } } },
+        include: {
+          client: true,
+          vehicle: true,
+          payments: { orderBy: { createdAt: 'desc' } },
+          checks: { orderBy: { createdAt: 'desc' } },
+          penalties: { orderBy: { createdAt: 'desc' } },
+          extraCharges: { orderBy: { createdAt: 'asc' } },
+          penaltyRule: true,
+        },
         orderBy: { expectedReturnAt: 'asc' },
       }),
       prisma.carPayment.aggregate({
@@ -29,36 +38,26 @@ export default async function DashboardPage() {
         where: { status: 'COMPLETED', paidAt: { gte: monthStart } },
         _sum: { amount: true },
       }),
-      prisma.vehicleDocument.findMany({
+      prisma.vehicleDocument.count({
         where: { expiryDate: { lte: expiryLimit } },
-        include: { vehicle: true },
-        orderBy: { expiryDate: 'asc' },
       }),
     ]),
   )
-  const [vehicles, bookings, todayMoney, monthMoney, expiring] = loaded.data ?? [
+  const [vehicles, bookings, todayMoney, monthMoney, expiringCount] = loaded.data ?? [
     [],
     [],
     { _sum: { amount: null as number | null } },
     { _sum: { amount: null as number | null } },
-    [],
+    0,
   ]
 
-  type BookingRow = (typeof bookings)[number] & {
-    client?: { fullName: string }
-    vehicle?: { regNumber: string }
-    payments?: { amount: number }[]
-  }
-  type DocRow = (typeof expiring)[number] & {
-    vehicle?: { regNumber: string }
-  }
-
-  const bookingRows = bookings as BookingRow[]
-  const docRows = expiring as DocRow[]
+  const bookingRows = bookings
 
   const owed = bookingRows.reduce((sum, b) => {
-    const paid = (b.payments ?? []).reduce((p, x) => p + x.amount, 0)
-    return sum + Math.max(0, b.totalCharge - paid)
+    const paid = b.payments
+      .filter((p) => p.status === 'COMPLETED')
+      .reduce((p, x) => p + x.amount, 0)
+    return sum + Math.max(0, b.totalCharge - (b.loyaltyDiscountKes ?? 0) - paid)
   }, 0)
   const carsOut = vehicles.filter((v) => v.status === 'HIRED').length
   const parked = vehicles.filter((v) => v.status === 'AVAILABLE').length
@@ -107,8 +106,8 @@ export default async function DashboardPage() {
     {
       id: 'expiring',
       label: 'Expiring documents',
-      value: String(docRows.length),
-      numericValue: docRows.length,
+      value: String(expiringCount),
+      numericValue: expiringCount,
       icon: 'contract',
       kind: 'count' as const,
     },
@@ -146,64 +145,109 @@ export default async function DashboardPage() {
         title="Live status"
         subtitle="Live fleet, cash, and hire status"
       />
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Card className="lg:col-span-2 overflow-hidden">
-          <div className="border-b border-outline-variant px-4 py-3 text-sm font-semibold text-on-surface dark:text-blue-50 dark:border-[#1e3a5f]">
-            Live hires & balances
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <Th cols={['Booking', 'Client', 'Vehicle', 'Due', 'Balance', 'Status']} />
-              <tbody className="divide-y divide-outline-variant">
-                {bookingRows.map((b) => {
-                  const paid = (b.payments ?? []).reduce((s, p) => s + p.amount, 0)
-                  return (
-                    <tr key={b.id} className="hover:bg-surface-container-low/60 dark:hover:bg-white/5 dark:text-blue-100">
-                      <td className="p-3 font-mono">{b.reference}</td>
-                      <td className="p-3">{b.client?.fullName ?? '—'}</td>
-                      <td className="p-3">{b.vehicle?.regNumber ?? '—'}</td>
-                      <td className="p-3">{b.expectedReturnAt.toLocaleString()}</td>
-                      <td className="p-3 font-semibold tabular-nums">
-                        {Math.max(0, b.totalCharge - paid).toLocaleString()}
-                      </td>
-                      <td className="p-3">
-                        <StatusPill status={b.status} />
-                      </td>
-                    </tr>
-                  )
-                })}
-                {!bookingRows.length && (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-on-surface-variant">
-                      {loaded.error ? 'Could not load hires.' : 'No active hires.'}
+      <Card className="overflow-hidden">
+        <div className="border-b border-outline-variant px-4 py-3 text-sm font-semibold text-on-surface dark:text-blue-50 dark:border-[#1e3a5f]">
+          Live hires & balances
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <Th cols={['Booking', 'Client', 'Vehicle', 'Due', 'Balance', 'Status', '']} />
+            <tbody className="divide-y divide-outline-variant">
+              {bookingRows.map((b) => {
+                const paid = b.payments
+                  .filter((p) => p.status === 'COMPLETED')
+                  .reduce((s, p) => s + p.amount, 0)
+                const balance = Math.max(0, b.totalCharge - (b.loyaltyDiscountKes ?? 0) - paid)
+                return (
+                  <tr
+                    key={b.id}
+                    className="hover:bg-surface-container-low/60 dark:hover:bg-white/5 dark:text-blue-100"
+                  >
+                    <td className="p-3 font-mono">{b.reference}</td>
+                    <td className="p-3">{b.client.fullName}</td>
+                    <td className="p-3">{b.vehicle.regNumber}</td>
+                    <td className="p-3">{b.expectedReturnAt.toLocaleString()}</td>
+                    <td className="p-3 font-semibold tabular-nums">
+                      {balance.toLocaleString()}
+                    </td>
+                    <td className="p-3">
+                      <StatusPill status={b.status} />
+                    </td>
+                    <td className="p-3 text-right">
+                      <BookingViewButton
+                        booking={{
+                          id: b.id,
+                          reference: b.reference,
+                          status: b.status,
+                          clientName: b.client.fullName,
+                          clientPhone: b.client.phone,
+                          vehicleLabel: `${b.vehicle.make} ${b.vehicle.model} (${b.vehicle.regNumber})`,
+                          startAt: b.startAt.toISOString(),
+                          expectedReturnAt: b.expectedReturnAt.toISOString(),
+                          dispatchedAt: b.dispatchedAt?.toISOString() ?? null,
+                          returnedAt: b.returnedAt?.toISOString() ?? null,
+                          days: b.days,
+                          dailyRate: b.dailyRate,
+                          baseCharge: b.baseCharge,
+                          additionalCharge: b.additionalCharge,
+                          penaltyAmount: b.penaltyAmount,
+                          totalCharge: b.totalCharge,
+                          dispatchNotes: b.dispatchNotes,
+                          returnNotes: b.returnNotes,
+                          paid,
+                          balance,
+                          payments: b.payments.map((p) => ({
+                            id: p.id,
+                            amount: p.amount,
+                            method: p.method,
+                            mpesaRef: p.mpesaRef,
+                            paidAt: p.paidAt?.toISOString() ?? null,
+                            status: p.status,
+                          })),
+                          checks: b.checks.map((c) => ({
+                            stage: c.stage,
+                            dentsNotes: c.dentsNotes,
+                            fuelLevel: c.fuelLevel,
+                            odometer: c.odometer,
+                            checkedBy: c.checkedBy,
+                            createdAt: c.createdAt.toISOString(),
+                          })),
+                          penalties: b.penalties.map((p) => ({
+                            minutesLate: p.minutesLate,
+                            amount: p.amount,
+                            calculationNotes: p.calculationNotes,
+                            createdAt: p.createdAt.toISOString(),
+                          })),
+                          extraCharges: (b.extraCharges ?? []).map((e) => ({
+                            stage: e.stage,
+                            description: e.description,
+                            amount: e.amount,
+                          })),
+                          penaltyRule: b.penaltyRule
+                            ? {
+                                graceMinutes: b.penaltyRule.graceMinutes,
+                                rate: b.penaltyRule.rate,
+                                rateUnit: b.penaltyRule.rateUnit,
+                                cap: b.penaltyRule.cap,
+                              }
+                            : null,
+                        }}
+                      />
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-        <Card className="overflow-hidden">
-          <div className="border-b border-outline-variant px-4 py-3 text-sm font-semibold text-on-surface dark:text-blue-50 dark:border-[#1e3a5f]">
-            Document alerts
-          </div>
-          <div className="divide-y divide-outline-variant dark:divide-[#1e3a5f]">
-            {docRows.map((d) => (
-              <div className="p-3 text-sm dark:text-blue-100" key={d.id}>
-                <strong>{d.vehicle?.regNumber ?? '—'}</strong>
-                <p className="text-xs text-on-surface-variant dark:text-blue-200/50">
-                  {d.type} · {d.expiryDate.toLocaleDateString()}
-                </p>
-              </div>
-            ))}
-            {!docRows.length && (
-              <p className="p-4 text-sm text-on-surface-variant dark:text-blue-200/45">
-                {loaded.error ? 'Could not load documents.' : 'No documents expiring within 7 days.'}
-              </p>
-            )}
-          </div>
-        </Card>
-      </div>
+                )
+              })}
+              {!bookingRows.length && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-on-surface-variant">
+                    {loaded.error ? 'Could not load hires.' : 'No active hires.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </PageShell>
   )
 }

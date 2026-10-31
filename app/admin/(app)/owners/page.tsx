@@ -3,106 +3,130 @@ import { softQuery } from '@/lib/errors'
 import { getSessionProfile } from '@/lib/auth/session'
 import { hasPermission } from '@/lib/rbac/require'
 import { PERMISSIONS } from '@/lib/rbac/registry'
-import { createCarOwner, generateOwnerPayout } from '@/app/actions/car-hire'
-import { Card, Th, SectionHead, StatusPill, PageShell } from '@/components/admin/ui'
+import { Card, Th, SectionHead, PageShell } from '@/components/admin/ui'
 import ServiceAlert from '@/components/admin/ServiceAlert'
+import OwnersAddButton from '@/components/admin/OwnersAddButton'
+import OwnerViewButton from '@/components/admin/OwnerViewButton'
+import { ensureDoxaCompanyOwner } from '@/lib/car-hire/company-owner'
+import { loadOwnersEarningsMap } from '@/lib/intelligence/finance'
 
 export const dynamic = 'force-dynamic'
-const field =
-  'w-full border-0 border-b border-outline-variant bg-transparent px-0 py-2 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-0'
-const cta =
-  'rounded-full bg-gradient-to-r from-primary to-primary-container px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(12,92,240,0.28)]'
+
+function kes(n: number) {
+  return `KES ${n.toLocaleString()}`
+}
 
 export default async function OwnersPage() {
   const profile = await getSessionProfile()
+  const canCreate = profile
+    ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.OWNER_CREATE))
+    : false
+  const canEdit = profile
+    ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.OWNER_EDIT))
+    : false
+  const canAssign = profile
+    ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.VEHICLE_ASSIGN_OWNER))
+    : false
+  const canPayout = profile
+    ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.OWNER_PAYOUT))
+    : false
   const canExport = profile
     ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.REPORT_EXPORT))
     : false
-  const loaded = await softQuery(() =>
-    prisma.carOwner.findMany({
-      include: {
-        _count: { select: { vehicles: true } },
-        payouts: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-      orderBy: { fullName: 'asc' },
-    }),
-  )
-  const owners = loaded.data ?? []
+
+  const loaded = await softQuery(async () => {
+    await ensureDoxaCompanyOwner()
+    const [owners, fleetVehicles, earningsMap] = await Promise.all([
+      prisma.carOwner.findMany({
+        include: {
+          vehicles: {
+            select: {
+              id: true,
+              regNumber: true,
+              make: true,
+              model: true,
+              type: true,
+              status: true,
+              dailyRate: true,
+            },
+            orderBy: { regNumber: 'asc' },
+          },
+          payouts: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+        orderBy: { fullName: 'asc' },
+      }),
+      prisma.carVehicle.findMany({
+        select: {
+          id: true,
+          regNumber: true,
+          make: true,
+          model: true,
+          ownerId: true,
+          owner: { select: { fullName: true } },
+        },
+        orderBy: { regNumber: 'asc' },
+      }),
+      loadOwnersEarningsMap(),
+    ])
+    return { owners, fleetVehicles, earningsMap }
+  })
+
+  const owners = loaded.data?.owners ?? []
+  const fleetVehicles = loaded.data?.fleetVehicles ?? []
+  const earningsMap = loaded.data?.earningsMap ?? new Map()
+  const fleetOpts = fleetVehicles.map((v) => ({
+    id: v.id,
+    regNumber: v.regNumber,
+    make: v.make,
+    model: v.model,
+    ownerId: v.ownerId,
+    ownerName: v.owner.fullName,
+  }))
+
   return (
     <PageShell>
-      <SectionHead title="Owner Management" subtitle="Fleet owners, commissions, and monthly payouts" />
+      <SectionHead
+        title="Owner Management"
+        action={
+          canExport || canCreate ? (
+            <div className="flex items-center gap-2">
+              {canExport ? (
+                <a
+                  href="/api/export/car-hire?report=owners"
+                  className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-lg border border-outline-variant bg-white px-3 text-[12px] font-semibold text-on-surface shadow-sm transition hover:border-primary hover:text-primary dark:border-[#1e3a5f] dark:bg-[#0a1628]"
+                >
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  Export owner report
+                </a>
+              ) : null}
+              {canCreate ? <OwnersAddButton /> : null}
+            </div>
+          ) : null
+        }
+      />
       {loaded.error ? <ServiceAlert message={loaded.error} /> : null}
-      <Card className="overflow-hidden">
-        <details>
-          <summary className="cursor-pointer list-none border-b border-outline-variant px-5 py-4 font-semibold text-primary [&::-webkit-details-marker]:hidden">
-            Register fleet owner
-          </summary>
-          <form
-            action={async (data) => {
-              'use server'
-              await createCarOwner(data)
-            }}
-            className="grid gap-4 px-5 py-5 md:grid-cols-3"
-          >
-            <input className={field} name="fullName" placeholder="Full name *" required />
-            <input className={field} name="phone" placeholder="Phone *" required />
-            <input className={field} name="email" type="email" placeholder="Email" />
-            <input className={field} name="nationalId" placeholder="National ID *" required />
-            <input className={field} name="kraPin" placeholder="KRA PIN" />
-            <input className={field} name="mpesaNumber" placeholder="M-Pesa number" />
-            <input className={field} name="bankDetails" placeholder="Bank account details" />
-            <input className={field} name="nextOfKin" placeholder="Next of kin" />
-            <select className={field} name="commissionType">
-              <option value="PERCENTAGE">Percentage commission</option>
-              <option value="FIXED">Fixed commission</option>
-            </select>
-            <input
-              className={field}
-              name="commissionValue"
-              type="number"
-              min="0"
-              step=".01"
-              placeholder="Commission value"
-              required
-            />
-            <input
-              className={field}
-              name="recurringDeduction"
-              type="number"
-              min="0"
-              step=".01"
-              placeholder="Recurring deduction"
-              defaultValue="0"
-            />
-            <button className={`${cta} md:justify-self-start`}>Save owner</button>
-          </form>
-        </details>
-      </Card>
-      {canExport ? (
-        <a
-          href="/api/export/car-hire?report=owners"
-          className="inline-flex rounded-full border border-outline-variant bg-white px-5 py-2.5 text-sm font-medium shadow-sm hover:border-primary hover:text-primary"
-        >
-          Export owner report
-        </a>
-      ) : null}
+
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full min-w-[880px] text-[13px]">
             <Th
               cols={[
                 'Owner',
                 'Phone',
                 'Vehicles',
-                'Commission',
-                'Latest Net Payout',
-                'Status',
+                'Total earned',
+                'Doxa share',
+                'Owner share',
+                'Split',
                 'Action',
               ]}
             />
             <tbody className="divide-y divide-outline-variant">
               {owners.map((owner) => {
-                const payout = owner.payouts[0]
+                const earnings = earningsMap.get(owner.id)
+                const total = earnings?.totalEarned ?? 0
+                const doxa = earnings?.doxaShare ?? 0
+                const ownerShare = earnings?.ownerShare ?? 0
                 return (
                   <tr key={owner.id} className="hover:bg-surface-container-low/60">
                     <td className="px-4 py-3 font-semibold">
@@ -112,39 +136,57 @@ export default async function OwnersPage() {
                       </small>
                     </td>
                     <td className="px-4 py-3">{owner.phone}</td>
-                    <td className="px-4 py-3 text-center tabular-nums">{owner._count.vehicles}</td>
-                    <td className="px-4 py-3">
-                      {owner.commissionValue}
-                      {owner.commissionType === 'PERCENTAGE' ? '%' : ' KES'}
+                    <td className="px-4 py-3 text-center tabular-nums">{owner.vehicles.length}</td>
+                    <td className="px-4 py-3 font-semibold tabular-nums">{kes(total)}</td>
+                    <td className="px-4 py-3 tabular-nums text-on-surface-variant">{kes(doxa)}</td>
+                    <td className="px-4 py-3 font-semibold tabular-nums text-primary">
+                      {kes(ownerShare)}
                     </td>
-                    <td className="px-4 py-3 font-semibold tabular-nums">
-                      KES {(payout?.netPay ?? 0).toLocaleString()}
+                    <td className="px-4 py-3 text-on-surface-variant">
+                      {owner.commissionType === 'PERCENTAGE'
+                        ? `${owner.commissionValue}% Doxa`
+                        : `${kes(owner.commissionValue)} Doxa`}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill status={payout?.status ?? 'No statement'} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <form
-                        action={async () => {
-                          'use server'
-                          const now = new Date()
-                          await generateOwnerPayout(
-                            owner.id,
-                            new Date(now.getFullYear(), now.getMonth(), 1),
-                            now,
-                          )
+                      <OwnerViewButton
+                        canEdit={canEdit}
+                        canAssign={canAssign}
+                        canPayout={canPayout}
+                        fleetVehicles={fleetOpts}
+                        owner={{
+                          id: owner.id,
+                          fullName: owner.fullName,
+                          phone: owner.phone,
+                          email: owner.email,
+                          nationalId: owner.nationalId,
+                          kraPin: owner.kraPin,
+                          bankDetails: owner.bankDetails,
+                          mpesaNumber: owner.mpesaNumber,
+                          nextOfKin: owner.nextOfKin,
+                          commissionType: owner.commissionType,
+                          commissionValue: owner.commissionValue,
+                          recurringDeduction: owner.recurringDeduction,
+                          active: owner.active,
+                          vehicles: owner.vehicles,
+                          latestPayoutNet: owner.payouts[0]?.netPay ?? 0,
+                          latestPayoutStatus: owner.payouts[0]?.status ?? null,
+                          totalEarned: total,
+                          doxaShare: doxa,
+                          ownerShare,
                         }}
-                      >
-                        <button className="text-primary underline">Generate month</button>
-                      </form>
+                      />
                     </td>
                   </tr>
                 )
               })}
               {!owners.length && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-on-surface-variant">
-                    {loaded.error ? 'Could not load owners.' : 'No owners registered.'}
+                  <td colSpan={8} className="p-8 text-center text-on-surface-variant">
+                    {loaded.error
+                      ? 'Could not load owners.'
+                      : canCreate
+                        ? 'No owners yet. Use Add new owner to register one.'
+                        : 'No owners registered.'}
                   </td>
                 </tr>
               )}

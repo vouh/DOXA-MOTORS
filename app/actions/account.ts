@@ -5,13 +5,12 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { requireActiveStaff } from '@/lib/auth/session'
 import { writeAudit } from '@/lib/audit'
-import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
+import { actionFail, friendlyErrorMessage } from '@/lib/errors'
 
 type ActionResult = { ok: true; message: string } | { ok: false; message: string }
 
 function fail(error: unknown): ActionResult {
-  if (isConnectionError(error)) return { ok: false, message: friendlyErrorMessage(error) }
-  return { ok: false, message: error instanceof Error ? error.message : 'Operation failed.' }
+  return actionFail(error)
 }
 
 /** Logged-in staff change their own password via Supabase Auth. */
@@ -31,7 +30,7 @@ export async function changeOwnPassword(formData: FormData): Promise<ActionResul
     const cookieStore = await cookies()
     const supabase = createClient(cookieStore)
     const { error } = await supabase.auth.updateUser({ password: data.password })
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(friendlyErrorMessage(error))
 
     await writeAudit({
       userId: profile.id,

@@ -8,14 +8,13 @@ import { bumpRbacVersion, invalidatePermissionCache } from '@/lib/rbac'
 import { PERMISSIONS, SUPER_ADMIN_ROLE_NAME, ALL_PERMISSION_KEYS } from '@/lib/rbac/registry'
 import { writeAudit } from '@/lib/audit'
 import { syncUserMetadata } from '@/lib/auth/session'
-import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
+import { actionFail } from '@/lib/errors'
 
 type ActionResult = { ok: true; message: string; id?: string } | { ok: false; message: string }
 
 function fail(error: unknown): ActionResult {
   if (error instanceof ForbiddenError) return { ok: false, message: error.message }
-  if (isConnectionError(error)) return { ok: false, message: friendlyErrorMessage(error) }
-  return { ok: false, message: error instanceof Error ? error.message : 'Operation failed.' }
+  return actionFail(error)
 }
 
 const roleSchema = z.object({
@@ -77,7 +76,7 @@ export async function createRole(formData: FormData): Promise<ActionResult> {
       entityId: role.id,
       meta: { name: role.name, permissions: perms.map((p) => p.key) },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Role “${role.name}” created.`, id: role.id }
   } catch (error) {
     return fail(error)
@@ -133,7 +132,7 @@ export async function updateRole(formData: FormData): Promise<ActionResult> {
       entityId: id,
       meta: { name: data.name, permissions: perms.map((p) => p.key) },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Role “${data.name.trim()}” updated.` }
   } catch (error) {
     return fail(error)
@@ -165,7 +164,7 @@ export async function deleteRole(id: string): Promise<ActionResult> {
       entityId: id,
       meta: { name: role.name },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Role “${role.name}” deleted.` }
   } catch (error) {
     return fail(error)
@@ -206,7 +205,7 @@ export async function assignUserRole(userId: string, roleId: string): Promise<Ac
       entityId: userId,
       meta: { roleId, roleName: role.name, isSuperAdmin: role.isSystem },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Assigned “${role.name}” to ${target.email}.` }
   } catch (error) {
     return fail(error)

@@ -41,10 +41,16 @@ export const PERMISSIONS = {
 
   SETTINGS_PENALTY_EDIT: 'settings:penalty_rules:edit',
   SETTINGS_COMMISSION: 'settings:commission:edit',
+  SETTINGS_VIEW: 'settings:view',
+  SETTINGS_EDIT: 'settings:edit',
 
   MESSAGE_VIEW: 'message:view',
   MESSAGE_SEND: 'message:send',
   MESSAGE_BROADCAST: 'message:broadcast',
+
+  DOC_VIEW: 'doc:view',
+  DOC_UPLOAD: 'doc:upload',
+  DOC_DELETE: 'doc:delete',
 
   STAFF_VIEW: 'staff:view',
   STAFF_MANAGE: 'staff:manage',
@@ -97,12 +103,18 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { key: PERMISSIONS.EXPENSE_RECORD, label: 'Record expenses', category: 'Finance' },
   { key: PERMISSIONS.REPORT_EXPORT, label: 'Export reports', category: 'Finance' },
 
-  { key: PERMISSIONS.SETTINGS_PENALTY_EDIT, label: 'Edit penalty rules', category: 'Settings' },
+  // SETTINGS_PENALTY_EDIT is Super Admin only — not assignable via Roles UI
   { key: PERMISSIONS.SETTINGS_COMMISSION, label: 'Edit commission settings', category: 'Settings' },
+  { key: PERMISSIONS.SETTINGS_VIEW, label: 'View settings', category: 'Settings' },
+  { key: PERMISSIONS.SETTINGS_EDIT, label: 'Edit settings (prices & loyalty)', category: 'Settings' },
 
-  { key: PERMISSIONS.MESSAGE_VIEW, label: 'View messages', category: 'Notifications' },
-  { key: PERMISSIONS.MESSAGE_SEND, label: 'Send messages', category: 'Notifications' },
-  { key: PERMISSIONS.MESSAGE_BROADCAST, label: 'Broadcast messages', category: 'Notifications' },
+  { key: PERMISSIONS.MESSAGE_VIEW, label: 'View communications', category: 'Communications' },
+  { key: PERMISSIONS.MESSAGE_SEND, label: 'Send email / SMS', category: 'Communications' },
+  { key: PERMISSIONS.MESSAGE_BROADCAST, label: 'Broadcast to clients or owners', category: 'Communications' },
+
+  { key: PERMISSIONS.DOC_VIEW, label: 'View documents', category: 'Documents' },
+  { key: PERMISSIONS.DOC_UPLOAD, label: 'Upload documents', category: 'Documents' },
+  { key: PERMISSIONS.DOC_DELETE, label: 'Delete documents', category: 'Documents' },
 
   { key: PERMISSIONS.STAFF_VIEW, label: 'View staff', category: 'Staff' },
   { key: PERMISSIONS.STAFF_MANAGE, label: 'Invite / suspend staff', category: 'Staff' },

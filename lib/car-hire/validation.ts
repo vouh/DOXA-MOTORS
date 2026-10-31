@@ -1,6 +1,17 @@
 import { z } from 'zod'
+import { COMMENT_MAX, REG_NUMBER_MAX, REG_NUMBER_MIN, sanitizeComment, VETTING_NOTES_MAX } from './input-rules'
 
 const optionalText = z.string().trim().optional().transform((value) => value || undefined)
+
+const optionalComment = z
+  .string()
+  .optional()
+  .transform((value) => sanitizeComment(value ?? '', COMMENT_MAX) || undefined)
+
+const requiredComment = z
+  .string()
+  .transform((value) => sanitizeComment(value, COMMENT_MAX))
+  .pipe(z.string().min(1, 'Add a short note, or type None.').max(COMMENT_MAX))
 
 const phone = z
   .string()
@@ -31,6 +42,31 @@ const personName = z
 const idOrPassport = z
   .string()
   .trim()
+  .transform((v) => v.replace(/\D/g, ''))
+  .pipe(
+    z
+      .string()
+      .min(4, 'ID number must be at least 4 digits')
+      .max(10, 'ID number must be at most 10 digits')
+      .regex(/^\d{4,10}$/, 'ID number may only contain digits'),
+  )
+
+const licenceNo = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/\D/g, ''))
+  .pipe(
+    z
+      .string()
+      .min(3, 'Licence number is required')
+      .max(10, 'Licence number must be at most 10 digits')
+      .regex(/^\d{3,10}$/, 'Licence number may only contain digits'),
+  )
+
+/** Owners may still use alphanumeric national IDs / passport codes. */
+const ownerNationalId = z
+  .string()
+  .trim()
   .transform((v) => v.replace(/[^A-Za-z0-9]/g, ''))
   .pipe(
     z
@@ -38,18 +74,6 @@ const idOrPassport = z
       .min(4, 'ID / passport must be at least 4 characters')
       .max(20)
       .regex(/^[A-Za-z0-9]+$/, 'ID / passport may only contain letters and numbers'),
-  )
-
-const licenceNo = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/[^A-Za-z0-9-]/g, '').toUpperCase())
-  .pipe(
-    z
-      .string()
-      .min(3, 'Licence number is required')
-      .max(30)
-      .regex(/^[A-Za-z0-9-]+$/, 'Licence may only contain letters, numbers, and hyphens'),
   )
 
 export const clientSchema = z.object({
@@ -90,7 +114,7 @@ export const clientSchema = z.object({
   notes: z
     .string()
     .trim()
-    .max(2000)
+    .max(VETTING_NOTES_MAX, `Notes must be ${VETTING_NOTES_MAX} characters or fewer`)
     .optional()
     .transform((value) => value || undefined),
 })
@@ -99,7 +123,7 @@ export const ownerSchema = z.object({
   fullName: personName,
   phone,
   email: z.string().trim().email().optional().or(z.literal('')),
-  nationalId: idOrPassport,
+  nationalId: ownerNationalId,
   kraPin: optionalText,
   bankDetails: optionalText,
   mpesaNumber: optionalPhone,
@@ -111,16 +135,56 @@ export const ownerSchema = z.object({
 
 export const vehicleSchema = z.object({
   ownerId: z.string().min(1),
-  regNumber: z.string().trim().min(5).transform((value) => value.toUpperCase()),
-  make: z.string().trim().min(2),
-  model: z.string().trim().min(1),
+  regNumber: z
+    .string()
+    .trim()
+    .transform((value) =>
+      value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, ' ')
+        .replace(/ {2,}/g, ' ')
+        .trim()
+        .slice(0, REG_NUMBER_MAX),
+    )
+    .pipe(
+      z
+        .string()
+        .min(REG_NUMBER_MIN, `Registration must be at least ${REG_NUMBER_MIN} characters`)
+        .max(REG_NUMBER_MAX, `Registration must be at most ${REG_NUMBER_MAX} characters`)
+        .regex(
+          /^[A-Z0-9]+( [A-Z0-9]+)*$/,
+          'Use letters, numbers, and single spaces only',
+        ),
+    ),
+  make: z
+    .string()
+    .trim()
+    .min(2, 'Enter the make')
+    .max(40)
+    .regex(/^[\p{L}\s.'-]+$/u, 'Make can only include letters and spaces'),
+  model: z
+    .string()
+    .trim()
+    .min(1, 'Enter the model')
+    .max(40)
+    .regex(/^[\p{L}\p{N}\s.\-/]+$/u, 'Model can only include letters, numbers, and basic punctuation'),
   year: z.preprocess(
     (value) => (value === '' || value == null ? undefined : value),
     z.coerce.number().int().min(1980).max(2100).optional(),
   ),
-  color: optionalText,
+  color: z.preprocess(
+    (value) => {
+      const t = String(value ?? '').trim()
+      return t ? t : undefined
+    },
+    z
+      .string()
+      .max(30)
+      .regex(/^[\p{L}\s.'-]+$/u, 'Colour can only include letters and spaces')
+      .optional(),
+  ),
   type: z.enum(['SALOON', 'SUV_4X4', 'VAN_MINIBUS', 'PICKUP', 'ECONOMY']),
-  dailyRate: z.coerce.number().positive(),
+  dailyRate: z.coerce.number().int().positive('Daily rate must be greater than 0'),
   insuranceExpiry: z.preprocess(
     (value) => (value === '' || value == null ? undefined : value),
     z.coerce.date().optional(),
@@ -137,7 +201,7 @@ export const bookingSchema = z.object({
   startAt: z.coerce.date(),
   expectedReturnAt: z.coerce.date(),
   dailyRate: z.coerce.number().positive(),
-  dispatchNotes: optionalText,
+  dispatchNotes: optionalComment,
 }).refine((value) => value.expectedReturnAt > value.startAt, {
   message: 'Return must be after dispatch.',
   path: ['expectedReturnAt'],
@@ -150,8 +214,32 @@ export const conditionSchema = z.object({
   componentsOk: z.coerce.boolean().default(true),
 })
 
+/** Dispatch requires a full condition snapshot before release. */
+export const dispatchConditionSchema = z.object({
+  dentsNotes: requiredComment,
+  fuelLevel: z.coerce.number().int().min(0, 'Fuel % required').max(100),
+  odometer: z.coerce.number().int().min(0, 'Odometer reading required'),
+  componentsOk: z.coerce.boolean().default(true),
+})
+
+/** Return / Mark returned — same required condition as dispatch. */
+export const returnConditionSchema = dispatchConditionSchema
+
+const vehicleTypes = ['SALOON', 'SUV_4X4', 'VAN_MINIBUS', 'PICKUP', 'ECONOMY'] as const
+
 export const penaltyRuleSchema = z.object({
   name: z.string().trim().min(2),
+  vehicleType: z
+    .string()
+    .optional()
+    .transform((v) => {
+      const raw = (v ?? '').trim()
+      if (!raw) return null
+      if ((vehicleTypes as readonly string[]).includes(raw)) {
+        return raw as (typeof vehicleTypes)[number]
+      }
+      throw new Error('Invalid vehicle type for penalty rule.')
+    }),
   graceMinutes: z.coerce.number().int().min(0),
   rate: z.coerce.number().min(0),
   rateUnit: z.enum(['HOUR', 'DAY']),
@@ -202,4 +290,23 @@ export const expenseSchema = z.object({
   category: z.string().trim().min(2),
   amount: z.coerce.number().positive(),
   incurredAt: z.coerce.date(),
+})
+
+export const expenseUpdateSchema = z.object({
+  expenseId: z.string().min(1),
+  description: z.string().trim().min(2),
+  category: z.string().trim().min(2),
+  amount: z.coerce.number().positive(),
+  incurredAt: z.coerce.date(),
+})
+
+export const expenseDeleteSchema = z.object({
+  expenseId: z.string().min(1),
+})
+
+export const expenseBulkDeleteSchema = z.object({
+  expenseIds: z
+    .union([z.string(), z.array(z.string())])
+    .transform((v) => (Array.isArray(v) ? v : v.split(',').map((s) => s.trim()).filter(Boolean)))
+    .pipe(z.array(z.string().min(1)).min(1).max(100)),
 })

@@ -92,7 +92,29 @@ if (envStatus('DATABASE_URL') !== 'set' || envStatus('DIRECT_URL') !== 'set') {
   )
   exitCode = 1
 } else {
-  const prisma = new PrismaClient()
+  // Match app connection params (timeouts / ssl / pgbouncer) from lib/database-config.ts
+  function withPrismaConnectionParams(url) {
+    if (!url) return url
+    const lower = url.toLowerCase()
+    const parts = []
+    if (!lower.includes('connect_timeout=')) parts.push('connect_timeout=30')
+    if (!lower.includes('pool_timeout=')) parts.push('pool_timeout=30')
+    if (!lower.includes('connection_limit=')) parts.push('connection_limit=5')
+    if (!lower.includes('sslmode=')) parts.push('sslmode=require')
+    const usesPooler =
+      lower.includes('pooler.supabase.com') ||
+      lower.includes(':6543/') ||
+      lower.includes(':6543?')
+    if (usesPooler && !lower.includes('pgbouncer=')) parts.push('pgbouncer=true')
+    if (!parts.length) return url
+    return `${url}${url.includes('?') ? '&' : '?'}${parts.join('&')}`
+  }
+
+  const prisma = new PrismaClient({
+    datasources: {
+      db: { url: withPrismaConnectionParams(process.env.DATABASE_URL) },
+    },
+  })
   try {
     await prisma.$connect()
     const tables = await prisma.$queryRaw`

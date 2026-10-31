@@ -15,6 +15,7 @@ type StaffRow = {
   roleLabel: string
   status: UserStatus
   isSuperAdmin: boolean
+  suspiciousScore: number
 }
 
 export default function StaffTable({
@@ -57,6 +58,7 @@ export default function StaffTable({
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Role</th>
+              <th className="px-3 py-2">Risk</th>
               <th className="px-3 py-2">Status</th>
               {canManage && <th className="px-3 py-2">Actions</th>}
             </tr>
@@ -92,6 +94,22 @@ export default function StaffTable({
                     </select>
                   ) : (
                     r.roleLabel
+                  )}
+                </td>
+                <td className="px-3 py-2 tabular-nums">
+                  {r.suspiciousScore > 0 ? (
+                    <span
+                      className={
+                        r.suspiciousScore >= 25
+                          ? 'font-semibold text-[#E90809]'
+                          : 'font-semibold text-amber-700 dark:text-amber-400'
+                      }
+                      title="Suspicious activity score from delete patterns"
+                    >
+                      {r.suspiciousScore}
+                    </span>
+                  ) : (
+                    <span className="text-on-surface-variant">0</span>
                   )}
                 </td>
                 <td className="px-3 py-2">{r.status}</td>

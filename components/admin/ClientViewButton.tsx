@@ -4,14 +4,18 @@ import { useEffect, useId, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { deleteCarClient, setCarClientStatus, updateCarClient } from '@/app/actions/car-hire'
+import { recalculateClientLoyaltyAction } from '@/app/actions/settings'
+import ClientIdentityDocs from '@/components/admin/ClientIdentityDocs'
 import {
-  alnumOnly,
   digitsOnly,
   emailInputProps,
+  ID_NUMBER_MAX,
   idInputProps,
-  licenceChars,
+  LICENCE_NUMBER_MAX,
   licenceInputProps,
   nameInputProps,
+  nextOfKinInputProps,
+  notesInputProps,
   onAddressInput,
   onDigitsInput,
   onNameInput,
@@ -35,6 +39,7 @@ export type ClientDetails = {
   notes: string | null
   status: 'ACTIVE' | 'SUSPENDED'
   trips: number
+  loyaltyPoints: number
 }
 
 const field =
@@ -56,8 +61,10 @@ function SensitiveField({
   hint?: string
   mode: 'id' | 'licence'
 }) {
+  const max = mode === 'id' ? ID_NUMBER_MAX : LICENCE_NUMBER_MAX
   const [unlocked, setUnlocked] = useState(false)
-  const [value, setValue] = useState(initial)
+  const [value, setValue] = useState(() => digitsOnly(initial, max))
+  const [overLimit, setOverLimit] = useState(false)
   const props = mode === 'id' ? idInputProps : licenceInputProps
 
   return (
@@ -72,12 +79,17 @@ function SensitiveField({
       </span>
       <div className="group relative">
         <input
-          className={`${field} pr-9 transition-[filter] ${unlocked ? '' : 'pointer-events-none select-none blur-[6px]'}`}
+          className={`${field} pr-9 transition-[filter] ${unlocked ? '' : 'pointer-events-none select-none blur-[6px]'} ${
+            overLimit ? 'doxa-input-over-limit' : ''
+          }`}
           name={name}
           value={value}
-          onChange={(e) =>
-            setValue(mode === 'id' ? alnumOnly(e.target.value) : licenceChars(e.target.value))
-          }
+          onChange={(e) => {
+            const raw = e.target.value.replace(/\D/g, '')
+            const over = raw.length > max
+            setOverLimit(over)
+            setValue(raw.slice(0, max))
+          }}
           readOnly={!unlocked}
           tabIndex={unlocked ? 0 : -1}
           required
@@ -222,6 +234,10 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                   <span className="hidden h-3 w-px shrink-0 bg-outline-variant sm:block dark:bg-[#1e3a5f]" aria-hidden />
                   <p className="shrink-0 text-[11px] text-on-surface-variant dark:text-blue-200/50">
                     {client.trips} trip{client.trips === 1 ? '' : 's'} ·{' '}
+                    <span className="font-semibold tabular-nums text-primary">
+                      {client.loyaltyPoints} pts
+                    </span>{' '}
+                    ·{' '}
                     <span
                       className={
                         status === 'ACTIVE' ? 'text-green-600 dark:text-green-400' : 'text-[#E90809]'
@@ -333,9 +349,7 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                         name="nextOfKin"
                         required
                         defaultValue={client.nextOfKin ?? ''}
-                        maxLength={100}
-                        minLength={2}
-                        title="Letters and spaces only"
+                        {...nextOfKinInputProps}
                         onInput={onNameInput()}
                       />
                     </label>
@@ -346,13 +360,7 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                         name="secondContact"
                         required
                         defaultValue={client.secondContact ? digitsOnly(client.secondContact) : ''}
-                        inputMode="numeric"
-                        autoComplete="tel"
-                        pattern="\d{9,12}"
-                        maxLength={12}
-                        minLength={9}
-                        title="9–12 digits only"
-                        placeholder="07XXXXXXXX"
+                        {...phoneInputProps}
                         onInput={onDigitsInput()}
                       />
                     </label>
@@ -363,10 +371,20 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                         name="notes"
                         rows={2}
                         defaultValue={client.notes ?? ''}
-                        maxLength={2000}
+                        {...notesInputProps}
                         onInput={onNotesInput()}
                       />
                     </label>
+                  </div>
+
+                  <div className="rounded-lg border border-outline-variant p-3 dark:border-[#1e3a5f]">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+                      Optional document copies
+                    </p>
+                    <p className="mb-2 text-[11px] text-on-surface-variant dark:text-blue-200/50">
+                      ID and licence numbers above are enough for booking. Upload scans here only if needed.
+                    </p>
+                    <ClientIdentityDocs clientId={client.id} compact />
                   </div>
 
                   {error ? (
@@ -383,6 +401,32 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-outline-variant px-4 py-2.5 dark:border-[#1e3a5f]">
                   <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null)
+                        setMessage(null)
+                        startTransition(async () => {
+                          const result = await recalculateClientLoyaltyAction(client.id)
+                          if (!result.ok) {
+                            setError(result.message)
+                            return
+                          }
+                          setMessage(result.message)
+                          router.refresh()
+                        })
+                      }}
+                      disabled={pending || confirming || status !== 'ACTIVE'}
+                      title={
+                        status !== 'ACTIVE'
+                          ? 'Suspended clients cannot earn or recalculate points'
+                          : 'Recalculate loyalty from returned hires'
+                      }
+                      className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/10 disabled:opacity-60"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">refresh</span>
+                      Recalculate points
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -418,6 +462,17 @@ export default function ClientViewButton({ client }: { client: ClientDetails }) 
                   </div>
 
                   <div className="flex gap-1.5">
+                    {status === 'ACTIVE' ? (
+                      <a
+                        href={`/admin/bookings?clientId=${client.id}`}
+                        title="Booking — create a hire for this client"
+                        aria-label="Booking — create a hire for this client"
+                        className="inline-flex items-center gap-1 rounded-md bg-[#E90809] px-3 py-1 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[#C50000]"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">event_available</span>
+                        Book
+                      </a>
+                    ) : null}
                     <button
                       type="button"
                       onClick={close}

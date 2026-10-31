@@ -10,14 +10,13 @@ import { normalizeEmail } from '@/lib/auth/helpers'
 import { requirePermission, ForbiddenError } from '@/lib/rbac/require'
 import { PERMISSIONS } from '@/lib/rbac/registry'
 import { z } from 'zod'
-import { friendlyErrorMessage, isConnectionError } from '@/lib/errors'
+import { actionFail } from '@/lib/errors'
 
 type ActionResult = { ok: true; message: string } | { ok: false; message: string }
 
 function fail(error: unknown): ActionResult {
   if (error instanceof ForbiddenError) return { ok: false, message: error.message }
-  if (isConnectionError(error)) return { ok: false, message: friendlyErrorMessage(error) }
-  return { ok: false, message: error instanceof Error ? error.message : 'Operation failed.' }
+  return actionFail(error)
 }
 
 const inviteSchema = z.object({
@@ -79,7 +78,7 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
       entityId: user.id,
       meta: { email: user.email, roleId: role.id, roleName: role.name },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     revalidatePath('/admin/profile')
     return { ok: true, message: `Invited ${user.email} as ${role.name}.` }
   } catch (error) {
@@ -109,7 +108,7 @@ export async function setStaffStatus(id: string, status: UserStatus): Promise<Ac
       entityId: id,
       meta: { status },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Staff marked ${status}.` }
   } catch (error) {
     return fail(error)
@@ -148,7 +147,7 @@ export async function resetStaffPassword(formData: FormData): Promise<ActionResu
       entityId: target.id,
       meta: { email: target.email },
     })
-    revalidatePath('/admin/staff')
+    revalidatePath('/admin/settings')
     return { ok: true, message: `Password updated for ${target.email}. Share it securely with them.` }
   } catch (error) {
     return fail(error)

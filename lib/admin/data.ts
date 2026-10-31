@@ -15,6 +15,7 @@ export const MODULES: { id: string; label: string; icon: string; actions: string
   { id: 'vehicles', label: 'Vehicles', icon: 'directions_car', actions: ['View', 'Add Vehicle', 'Edit', 'Assign to Owner'] },
   { id: 'bookings', label: 'Bookings & Dispatch', icon: 'assignment', actions: ['View', 'Create Booking', 'Dispatch', 'Extend Hire', 'Check In'] },
   { id: 'owners', label: 'Owners', icon: 'person_pin', actions: ['View', 'Add Owner', 'Pay Out', 'Generate Statement'] },
+  { id: 'documents', label: 'Documents', icon: 'folder_open', actions: ['View', 'Upload', 'Delete'] },
   { id: 'finance', label: 'Finance', icon: 'account_balance_wallet', actions: ['View', 'Record Income', 'Record Expense', 'Export Reports'] },
   { id: 'notifications', label: 'Notifications', icon: 'notifications', actions: ['View', 'Send Notifications'] },
   { id: 'staff', label: 'Staff & Roles', icon: 'manage_accounts', actions: ['View Staff', 'Manage Staff', 'Manage Roles'] },

@@ -15,6 +15,19 @@ export function hireDays(start: Date, end: Date): number {
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / DAY_MS))
 }
 
+/** Same as hireDays, but returns null when the range is incomplete or invalid (for live UI). */
+export function tryHireDays(start: Date, end: Date): number | null {
+  try {
+    return hireDays(start, end)
+  } catch {
+    return null
+  }
+}
+
+export function extraChargesTotal(amounts: number[]): number {
+  return roundMoney(amounts.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0))
+}
+
 export function bookingCharge(start: Date, end: Date, dailyRate: number) {
   if (!Number.isFinite(dailyRate) || dailyRate < 0) throw new Error('Daily rate must be positive.')
   const days = hireDays(start, end)
@@ -56,7 +69,7 @@ export function ownerSettlement(input: {
       : Math.max(0, input.commissionValue),
   )
   const deductions = roundMoney(Math.max(0, input.recurringDeduction ?? 0))
-  const netPay = roundMoney(Math.max(0, grossEarnings - commission - totalExpenses - deductions))
+  const netPay = roundMoney(grossEarnings - commission - totalExpenses - deductions)
   return { grossEarnings, commission, totalExpenses, deductions, netPay }
 }
 

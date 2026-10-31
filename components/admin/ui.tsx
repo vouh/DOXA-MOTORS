@@ -2,24 +2,25 @@
 
 import React from 'react'
 
-export function StatusPill({ status }: { status: string }) {
-  const key = status.toUpperCase().replace(/\s+/g, '_')
+export function StatusPill({ status }: { status?: string | null }) {
+  const raw = status?.trim() || 'Unknown'
+  const key = raw.toUpperCase().replace(/\s+/g, '_')
   const cls =
-    key === 'ACTIVE' || key === 'HIRED' || key === 'COMPLETED'
+    key === 'ACTIVE' || key === 'HIRED' || key === 'COMPLETED' || key === 'PAID'
       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-      : key === 'SUSPENDED' || key === 'FAILED' || key === 'CANCELLED'
+      : key === 'SUSPENDED' || key === 'FAILED' || key === 'CANCELLED' || key === 'URGENT'
         ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-        : key === 'MAINTENANCE' || key === 'PENDING' || key === 'RESERVED' || key === 'DISPATCHED'
+        : key === 'MAINTENANCE' || key === 'PENDING' || key === 'RESERVED' || key === 'DISPATCHED' || key === 'APPROVED'
           ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-          : key === 'RETURNED' || key === 'REFUNDED'
+          : key === 'RETURNED' || key === 'REFUNDED' || key === 'DRAFT' || key === 'SKIPPED' || key === 'NOTICE'
             ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
             : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-  const label = status.includes('_')
-    ? status
+  const label = raw.includes('_')
+    ? raw
         .split('_')
         .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
         .join(' ')
-    : status
+    : raw
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${cls}`}>
       {label}

@@ -122,6 +122,17 @@ async function main() {
     },
   })
 
+  await prisma.carOwner.create({
+    data: {
+      fullName: 'Doxa',
+      phone: '0700000000',
+      nationalId: 'DOXA-COMPANY',
+      commissionType: 'PERCENTAGE',
+      commissionValue: 0,
+      active: true,
+    },
+  })
+
   const vehicle = await prisma.carVehicle.create({
     data: {
       regNumber: 'KDA 123A',
@@ -141,7 +152,7 @@ async function main() {
       phone: '0700123456',
       email: 'james@example.com',
       idOrPassportNo: '87654321',
-      licenceNo: 'DL-001',
+      licenceNo: '1234567890',
       physicalAddress: 'Westlands, Nairobi',
       status: 'ACTIVE',
     },
@@ -175,7 +186,7 @@ async function main() {
 
   console.log('Seed complete.')
   console.log('  Super Admin:', director.email, '→ role', SUPER_ADMIN_ROLE_NAME)
-  console.log('  No other staff roles seeded — create them in /admin/staff')
+  console.log('  No other staff roles seeded — create them in /admin/settings')
   console.log('  Run: npm run db:bootstrap-auth  (password SuperAdmin@2026!)')
 }
 

@@ -9,22 +9,35 @@ const SAMPLES = [
   '12345678',
   'Find by phone…',
   '0712 345 678',
+  'Find by licence…',
+  '1234567890',
 ]
 
 type Props = {
   name?: string
+  value?: string
   defaultValue?: string
   className?: string
+  onChange?: (value: string) => void
+  onFocusChange?: (focused: boolean) => void
+  onSubmit?: () => void
 }
 
 export default function AnimatedSearchInput({
   name = 'q',
+  value,
   defaultValue = '',
   className = '',
+  onChange,
+  onFocusChange,
+  onSubmit,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const controlled = value !== undefined
   const [focused, setFocused] = useState(false)
-  const [hasText, setHasText] = useState(Boolean(defaultValue))
+  const [internal, setInternal] = useState(defaultValue)
+  const text = controlled ? value : internal
+  const hasText = Boolean(text.trim())
   const [display, setDisplay] = useState('')
   const [sampleIndex, setSampleIndex] = useState(0)
   const [phase, setPhase] = useState<'typing' | 'pause' | 'deleting'>('typing')
@@ -62,18 +75,12 @@ export default function AnimatedSearchInput({
   }, [animate, display, phase, sampleIndex])
 
   return (
-    <div
-      className={`group relative min-w-0 flex-1 transition-all duration-300 ${
-        focused
-          ? 'rounded-lg bg-primary/[0.04] ring-2 ring-primary/35 dark:bg-primary/10 dark:ring-primary/45'
-          : ''
-      }`}
-    >
+    <div className="group relative min-w-0 flex-1">
       <span
         aria-hidden
         className={`pointer-events-none absolute left-0 top-1/2 z-[1] -translate-y-1/2 whitespace-nowrap text-sm text-on-surface-variant/70 dark:text-blue-200/40 ${
-          focused ? 'left-3' : 'left-0'
-        } ${animate ? 'opacity-100' : 'opacity-0'}`}
+          animate ? 'opacity-100' : 'opacity-0'
+        }`}
       >
         {display}
         <span
@@ -83,21 +90,45 @@ export default function AnimatedSearchInput({
         />
       </span>
 
+      {/* Bottom glow on focus — no ring / box border */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-px origin-center transition-all duration-300 ${
+          focused
+            ? 'h-[2px] scale-x-100 bg-primary shadow-[0_0_10px_2px_rgba(37,99,235,0.45)]'
+            : 'scale-x-100 bg-outline-variant dark:bg-[#1e3a5f]'
+        }`}
+      />
+
       <input
         ref={inputRef}
-        className={`w-full bg-transparent transition-[padding,border-color] duration-300 ${className} ${
-          focused ? 'px-3 py-2.5' : ''
-        } ${animate ? 'caret-transparent placeholder:text-transparent' : ''}`}
+        className={`w-full border-0 bg-transparent focus:outline-none focus:ring-0 ${className} ${
+          animate ? 'caret-transparent placeholder:text-transparent' : ''
+        }`}
         name={name}
-        defaultValue={defaultValue}
+        value={controlled ? value : undefined}
+        defaultValue={controlled ? undefined : defaultValue}
         placeholder={focused || hasText ? 'Find by name, National ID or phone' : ' '}
         autoComplete="off"
-        onFocus={() => setFocused(true)}
-        onBlur={(e) => {
-          setFocused(false)
-          setHasText(Boolean(e.currentTarget.value.trim()))
+        onFocus={() => {
+          setFocused(true)
+          onFocusChange?.(true)
         }}
-        onChange={(e) => setHasText(Boolean(e.currentTarget.value.trim()))}
+        onBlur={() => {
+          setFocused(false)
+          onFocusChange?.(false)
+        }}
+        onChange={(e) => {
+          const next = e.currentTarget.value
+          if (!controlled) setInternal(next)
+          onChange?.(next)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            onSubmit?.()
+          }
+        }}
       />
     </div>
   )

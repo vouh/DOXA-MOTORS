@@ -2,10 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Material Symbols variation settings */
+/* Material Symbols — self-hosted (~450KB) and preloaded from /fonts.
+   font-display: block keeps ligature names invisible until the file is ready;
+   the 1em box clips any leftover fallback text so "dashboard" never flashes. */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   font-family: 'Material Symbols Outlined';
+  font-weight: 400;
   font-style: normal;
   font-size: 24px;
   line-height: 1;
@@ -15,6 +26,14 @@
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .icon-fill {
@@ -43,11 +62,42 @@
   transform: translate3d(0, 0, 0) scale(1);
 }
 
-/* —— Dashboard notification slide-in —— */
-@keyframes notif-slide {
-  from { opacity: 0; transform: translateX(18px); }
-  to   { opacity: 1; transform: translateX(0); }
+/* —— Admin sidebar active cutout (concave notch into content) —— */
+.dash-nav-cutout {
+  position: relative;
+  z-index: 2;
+  /* Bleed 2px into the content column so no blue seam shows */
+  margin-right: -2px;
+  padding-right: 2px;
+  background: var(--dash-cutout, #F6F8FB);
+  border-radius: 1.15rem 0 0 1.15rem;
+  box-shadow: 2px 0 0 var(--dash-cutout, #F6F8FB);
 }
+
+.dash-nav-cutout::before,
+.dash-nav-cutout::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dash-nav-cutout::before {
+  top: -14px;
+  border-bottom-right-radius: 14px;
+  box-shadow: 5px 5px 0 var(--dash-cutout, #F6F8FB);
+}
+
+.dash-nav-cutout::after {
+  bottom: -14px;
+  border-top-right-radius: 14px;
+  box-shadow: 5px -5px 0 var(--dash-cutout, #F6F8FB);
+}
+
 
 /* —— CSS-driven page reveals via html[data-pr] —— */
 @keyframes pr-up {
@@ -807,4 +857,39 @@ html.theme-animating *::after {
   ::view-transition-new(root) {
     animation: none !important;
   }
+  .search-btn-beam {
+    animation: none !important;
+  }
+}
+
+@keyframes search-btn-beam {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 24px rgba(12, 92, 240, 0.28),
+      0 0 0 0 rgba(12, 92, 240, 0.45);
+  }
+  50% {
+    transform: scale(1.045);
+    box-shadow:
+      0 14px 32px rgba(12, 92, 240, 0.42),
+      0 0 0 10px rgba(12, 92, 240, 0);
+  }
+}
+
+.search-btn-beam {
+  animation: search-btn-beam 1.15s ease-in-out infinite;
+}
+
+/* Cap flash when ID / licence digit max is exceeded */
+.doxa-input-over-limit {
+  border-color: #E90809 !important;
+  background-color: rgba(233, 8, 9, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(233, 8, 9, 0.25);
+  color: #9f0a0a;
+}
+.dark .doxa-input-over-limit {
+  background-color: rgba(233, 8, 9, 0.18) !important;
+  color: #fecaca;
 }

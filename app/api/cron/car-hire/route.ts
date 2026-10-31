@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  syncEndingSoonStaffNotices,
+  syncOverdueBookings,
+} from '@/lib/intelligence/bookings'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +20,6 @@ export async function GET(request: NextRequest) {
   const twoHours = new Date(now.getTime() + 2 * 60 * 60 * 1000)
   const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   let reminders = 0
-  let overdue = 0
   let expiries = 0
 
   const ending = await prisma.carBooking.findMany({
@@ -24,7 +27,6 @@ export async function GET(request: NextRequest) {
     include: { client: true, vehicle: true },
   })
   for (const booking of ending) {
-    // Dedupe per booking (not per client) — one client can have multiple hires ending soon.
     const bookingRef = `booking:${booking.id}`
     const exists = await prisma.messageLog.findFirst({
       where: {
@@ -51,21 +53,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const lateBookings = await prisma.carBooking.findMany({
-    where: { status: 'DISPATCHED', expectedReturnAt: { lt: now } },
-    include: { client: true, vehicle: true },
-  })
-  for (const booking of lateBookings) {
-    await prisma.carBooking.update({ where: { id: booking.id }, data: { status: 'OVERDUE' } })
-    await prisma.messageLog.create({
-      data: {
-        recipientType: 'CLIENT', recipientId: booking.clientId, recipientName: booking.client.fullName,
-        destination: booking.client.email || booking.client.phone, channel: booking.client.email ? 'EMAIL' : 'SMS',
-        template: 'vehicle_overdue', body: `${booking.vehicle.regNumber} is overdue. Please contact Doxa Motor Solutions.`,
-      },
-    })
-    overdue++
-  }
+  const overdue = await syncOverdueBookings(now)
+  await syncEndingSoonStaffNotices(now)
 
   const expiring = await prisma.vehicleDocument.findMany({
     where: { expiryDate: { gte: now, lte: sevenDays }, alertSentAt: null },
@@ -75,8 +64,11 @@ export async function GET(request: NextRequest) {
     await prisma.$transaction([
       prisma.messageLog.create({
         data: {
-          recipientType: 'STAFF', recipientId: 'director', recipientName: 'Director',
-          destination: process.env.DIRECTOR_ALERT_DESTINATION || 'dashboard', channel: 'EMAIL',
+          recipientType: 'STAFF',
+          recipientId: 'director',
+          recipientName: 'Director',
+          destination: process.env.DIRECTOR_ALERT_DESTINATION || 'dashboard',
+          channel: 'EMAIL',
           template: 'document_expiry',
           body: `${document.vehicle.regNumber} ${document.type.toLowerCase()} expires on ${document.expiryDate.toLocaleDateString()}.`,
         },

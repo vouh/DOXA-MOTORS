@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Montserrat, Inter, Orbitron } from 'next/font/google'
+import { FeedbackProvider } from '@/components/ui/FeedbackProvider'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -37,14 +38,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="light">
       <head>
         <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block"
+          rel="preload"
+          href="/fonts/material-symbols-outlined.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </head>
       <body
         className={`${montserrat.variable} ${inter.variable} ${orbitron.variable} bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col`}
       >
-        {children}
+        <FeedbackProvider>{children}</FeedbackProvider>
       </body>
     </html>
   )

@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import BrandLogo from '@/components/brand/BrandLogo'
-import { NAV_ITEMS, filterNav } from '@/lib/rbac/nav'
+import BookingIntelligenceLayer from '@/components/admin/BookingIntelligenceLayer'
+import { NAV_ITEMS, activeNavItem, activeNavLabel, filterNav } from '@/lib/rbac/nav'
 import type { StaffRole } from '@/lib/auth/types'
 
 function signOut() {
@@ -27,17 +29,56 @@ const ROLE_LABEL: Record<StaffRole, string> = {
   ACCOUNTANT: 'Accountant',
 }
 
+const SIDEBAR_MIN = 60
+const SIDEBAR_MAX = 360
+const SIDEBAR_DEFAULT = 208
+/** At or below this width, labels hide (icon-only mode). */
+const ICON_MODE_MAX = 72
+
+function clampWidth(w: number) {
+  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(w)))
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
   const pathname = usePathname()
 
-  const [collapsed, setCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
+  const [dragging, setDragging] = useState(false)
+  const [isLg, setIsLg] = useState(false)
   const [isDark, setIsDark] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null)
+  const [notifBadge, setNotifBadge] = useState(0)
+  const lastExpandedRef = useRef(SIDEBAR_DEFAULT)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(SIDEBAR_DEFAULT)
+
+  const collapsed = isLg && sidebarWidth <= ICON_MODE_MAX
+
+  const persistWidth = useCallback((w: number) => {
+    const next = clampWidth(w)
+    localStorage.setItem('dashSidebarWidth', String(next))
+    localStorage.setItem('dashSidebarCollapsed', next <= ICON_MODE_MAX ? '1' : '0')
+    if (next > ICON_MODE_MAX) lastExpandedRef.current = next
+  }, [])
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem('dashSidebarCollapsed') === '1')
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const apply = () => setIsLg(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    const savedW = Number(localStorage.getItem('dashSidebarWidth'))
+    if (Number.isFinite(savedW) && savedW >= SIDEBAR_MIN && savedW <= SIDEBAR_MAX) {
+      setSidebarWidth(savedW)
+      if (savedW > ICON_MODE_MAX) lastExpandedRef.current = savedW
+    } else if (localStorage.getItem('dashSidebarCollapsed') === '1') {
+      setSidebarWidth(SIDEBAR_MIN)
+    }
+
     const saved = localStorage.getItem('adminTheme')
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const dark = saved === 'dark' || (!saved && prefersDark)
@@ -53,6 +94,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       document.body.classList.remove('h-full', 'overflow-hidden')
     }
   }, [])
+
+  useEffect(() => {
+    const onBadge = (e: Event) => {
+      const detail = (e as CustomEvent<{ count?: number }>).detail
+      if (typeof detail?.count === 'number') setNotifBadge(detail.count)
+    }
+    window.addEventListener('doxa:notifications-badge', onBadge)
+    return () => window.removeEventListener('doxa:notifications-badge', onBadge)
+  }, [])
+
+  useEffect(() => {
+    if (!sessionUser) return
+    let cancelled = false
+    async function loadBadge() {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      try {
+        const res = await fetch('/api/admin/notifications/badge', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as { count?: number }
+        if (!cancelled && typeof data.count === 'number') setNotifBadge(data.count)
+      } catch {
+        /* ignore */
+      }
+    }
+    void loadBadge()
+    const id = window.setInterval(() => void loadBadge(), 60_000)
+    const onFocus = () => void loadBadge()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void loadBadge()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [sessionUser])
 
   useEffect(() => {
     setMobileOpen(false)
@@ -76,12 +159,53 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [])
 
+  useEffect(() => {
+    if (!dragging) return
+
+    const onMove = (e: PointerEvent) => {
+      const delta = e.clientX - dragStartX.current
+      setSidebarWidth(clampWidth(dragStartWidth.current + delta))
+    }
+    const onUp = (e: PointerEvent) => {
+      const delta = e.clientX - dragStartX.current
+      const next = clampWidth(dragStartWidth.current + delta)
+      setSidebarWidth(next)
+      persistWidth(next)
+      setDragging(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [dragging, persistWidth])
+
   const toggleCollapse = () => {
-    setCollapsed((c) => {
-      const next = !c
-      localStorage.setItem('dashSidebarCollapsed', next ? '1' : '0')
-      return next
+    setSidebarWidth((w) => {
+      if (w <= ICON_MODE_MAX) {
+        const next = lastExpandedRef.current || SIDEBAR_DEFAULT
+        persistWidth(next)
+        return next
+      }
+      lastExpandedRef.current = w
+      persistWidth(SIDEBAR_MIN)
+      return SIDEBAR_MIN
     })
+  }
+
+  const onResizePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault()
+    dragStartX.current = e.clientX
+    dragStartWidth.current = sidebarWidth
+    setDragging(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
   }
 
   const toggleTheme = () => {
@@ -99,7 +223,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       window.setTimeout(() => root.classList.remove('theme-animating'), 420)
     }
 
-    // Prefer View Transitions when available (smooth cross-fade of the whole UI).
     const doc = document as Document & {
       startViewTransition?: (cb: () => void) => { finished: Promise<void> }
     }
@@ -116,13 +239,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     apply()
   }
 
-  const isActive = (href: string) =>
-    href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
+  const activeNav = activeNavItem(pathname)
 
   const activeLabel =
     pathname.startsWith('/admin/profile') || pathname.startsWith('/admin/account')
       ? 'My Profile'
-      : (NAV_ITEMS.find((n) => isActive(n.href))?.label ?? 'Dashboard')
+      : (activeNavLabel(pathname) ?? 'Dashboard')
 
   const displayName = sessionUser?.fullName || 'Staff'
   const displayRole = sessionUser?.isSuperAdmin
@@ -147,71 +269,105 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     year: 'numeric',
   })
 
-  const navBtn = (opts: {
+  const navClass = (opts: { active?: boolean; danger?: boolean }) =>
+    `group relative flex w-full items-center text-[12px] font-medium leading-tight transition-colors duration-200 ${
+      collapsed ? 'justify-center px-1.5 py-1' : 'gap-2 px-2.5 py-1'
+    } ${
+      opts.active
+        ? 'dash-nav-cutout text-on-surface'
+        : opts.danger
+          ? 'mr-1.5 rounded-lg text-secondary-fixed-dim hover:bg-secondary-container/25 hover:text-white'
+          : 'mr-1.5 rounded-lg text-white/70 hover:bg-white/[0.08] hover:text-[#E90809]'
+    }`
+
+  const navIcon = (opts: { icon: string; active?: boolean; danger?: boolean }) => (
+    <span
+      className={`material-symbols-outlined text-[16px] shrink-0 transition-colors ${
+        opts.active
+          ? 'icon-fill text-on-surface'
+          : opts.danger
+            ? 'text-secondary-fixed-dim group-hover:text-white'
+            : 'text-white/75 group-hover:text-[#E90809]'
+      }`}
+    >
+      {opts.icon}
+    </span>
+  )
+
+  const navLabel = (opts: { label: string; active?: boolean; danger?: boolean }) =>
+    !collapsed ? (
+      <span
+        className={`truncate transition-colors ${
+          opts.active
+            ? 'font-semibold text-on-surface'
+            : opts.danger
+              ? ''
+              : 'group-hover:text-[#E90809]'
+        }`}
+      >
+        {opts.label}
+      </span>
+    ) : null
+
+  /** Real links (not router.push buttons) — URL in tooltip, middle-click / open-in-tab works. */
+  const navLink = (opts: {
     key: string
-    href?: string
-    onClick?: () => void
+    href: string
     label: string
     icon: string
     active?: boolean
+  }) => (
+    <Link
+      key={opts.key}
+      href={opts.href}
+      prefetch
+      aria-current={opts.active ? 'page' : undefined}
+      title={`${opts.label} — ${opts.href}`}
+      className={navClass({ active: opts.active })}
+    >
+      {navIcon(opts)}
+      {navLabel(opts)}
+    </Link>
+  )
+
+  const navAction = (opts: {
+    key: string
+    onClick: () => void
+    label: string
+    icon: string
     danger?: boolean
   }) => (
     <button
       key={opts.key}
       type="button"
-      onClick={opts.onClick ?? (() => opts.href && router.push(opts.href))}
-      title={collapsed ? opts.label : undefined}
-      className={`group relative w-full flex items-center gap-2.5 rounded-lg text-[12px] font-medium leading-tight transition-all ${
-        collapsed ? 'justify-center px-1.5 py-1.5' : 'px-2.5 py-1.5'
-      } ${
-        opts.active
-          ? 'bg-white/12 text-white'
-          : opts.danger
-            ? 'text-secondary-fixed-dim hover:bg-secondary-container/25 hover:text-white'
-            : 'text-white/70 hover:bg-secondary-container/15'
-      }`}
+      onClick={opts.onClick}
+      title={opts.label}
+      className={navClass({ danger: opts.danger })}
     >
-      {opts.active && !collapsed && (
-        <span
-          aria-hidden
-          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-secondary-container"
-        />
-      )}
-      <span
-        className={`material-symbols-outlined text-[16px] shrink-0 transition-colors ${
-          opts.active
-            ? 'icon-fill text-white'
-            : opts.danger
-              ? 'text-secondary-fixed-dim group-hover:text-white'
-              : 'text-white/75 group-hover:text-[#E90809]'
-        }`}
-      >
-        {opts.icon}
-      </span>
-      {!collapsed && (
-        <span
-          className={`truncate transition-colors ${
-            opts.active || opts.danger ? '' : 'group-hover:text-[#E90809]'
-          }`}
-        >
-          {opts.label}
-        </span>
-      )}
+      {navIcon(opts)}
+      {navLabel(opts)}
     </button>
   )
 
   return (
-    <div className="h-screen flex overflow-hidden bg-surface dark:bg-[#071428] text-on-surface dark:text-blue-50">
+    <div
+      className="h-screen flex overflow-hidden bg-surface dark:bg-[#071428] text-on-surface dark:text-blue-50"
+      style={
+        {
+          ['--dash-sidebar-w']: `${sidebarWidth}px`,
+          ['--dash-cutout']: isDark ? '#071428' : '#F6F8FB',
+        } as CSSProperties
+      }
+    >
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       <aside
-        className={`bg-primary-container dark:bg-[#031a4d] text-on-primary fixed left-0 top-0 h-screen flex flex-col z-50 border-r border-white/[0.06] dark:border-white/[0.08] shadow-[2px_0_24px_rgba(4,59,169,0.35)] dark:shadow-[2px_0_28px_rgba(2,10,28,0.45)] transition-all duration-300 overflow-hidden ${
-          collapsed ? 'w-[60px]' : 'w-52'
+        className={`w-52 lg:w-[var(--dash-sidebar-w)] bg-primary-container dark:bg-[#031a4d] text-on-primary fixed left-0 top-0 h-screen flex flex-col z-50 overflow-x-visible overflow-y-hidden ${
+          dragging ? '' : 'transition-[width] duration-200'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Brand + role under name (Alubonets-style) */}
         <div
           className={`pt-3.5 pb-3 flex items-center gap-2.5 border-b border-white/10 shrink-0 ${
             collapsed ? 'justify-center px-2' : 'px-3'
@@ -226,28 +382,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-2 px-1.5 space-y-px hide-scrollbar">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-visible py-1.5 pl-1.5 pr-0 space-y-0 hide-scrollbar">
           {visibleNav.map((item) =>
-            navBtn({
+            navLink({
               key: item.href,
               href: item.href,
               label: item.label,
               icon: item.icon,
-              active: isActive(item.href),
+              active: activeNav?.href === item.href,
             }),
           )}
         </nav>
 
-        {/* Utility footer — no duplicate avatar block */}
-        <div className={`py-2 border-t border-white/10 shrink-0 space-y-px px-1.5`}>
-          {navBtn({
+        <div className="py-1.5 border-t border-white/10 shrink-0 space-y-0 pl-1.5 pr-0">
+          {navLink({
             key: 'profile',
             href: '/admin/profile',
             label: 'My Profile',
             icon: 'account_circle',
             active: profileActive,
           })}
-          {navBtn({
+          {navAction({
             key: 'sign-out',
             onClick: signOut,
             label: 'Sign Out',
@@ -255,11 +410,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             danger: true,
           })}
         </div>
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          title="Drag to resize"
+          onPointerDown={onResizePointerDown}
+          className={`absolute top-0 right-0 hidden h-full w-1.5 cursor-col-resize touch-none lg:block ${
+            dragging ? 'bg-white/25' : 'bg-transparent hover:bg-white/20'
+          }`}
+        />
       </aside>
 
       <div
-        className={`flex-1 flex flex-col h-screen min-h-0 min-w-0 transition-[margin] duration-300 ${
-          collapsed ? 'lg:ml-[60px]' : 'lg:ml-52'
+        className={`relative z-0 flex-1 flex flex-col h-screen min-h-0 min-w-0 bg-surface dark:bg-[#071428] lg:ml-[var(--dash-sidebar-w)] ${
+          dragging ? '' : 'transition-[margin] duration-200'
         }`}
       >
         <header
@@ -315,22 +481,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => router.push('/admin/notifications')}
-              title="Notifications"
-              className="relative text-on-surface-variant dark:text-blue-200/60 hover:text-primary dark:hover:text-blue-300 transition-colors"
+            <Link
+              href="/admin/notifications"
+              prefetch
+              title={
+                notifBadge
+                  ? `${notifBadge} unread — /admin/notifications`
+                  : 'Notifications — /admin/notifications'
+              }
+              className={`relative transition-colors ${
+                notifBadge > 0
+                  ? 'text-[#E90809] dark:text-[#ff8a8a]'
+                  : 'text-on-surface-variant dark:text-blue-200/60 hover:text-primary dark:hover:text-blue-300'
+              }`}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+              <span
+                className={`material-symbols-outlined ${notifBadge > 0 ? 'icon-fill' : ''}`}
+                style={{ fontSize: 20 }}
+              >
                 notifications
               </span>
-            </button>
+              {notifBadge > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E90809] px-1 text-[9px] font-bold leading-none text-white">
+                  {notifBadge > 99 ? '99+' : notifBadge}
+                </span>
+              ) : null}
+            </Link>
 
-            <button
-              type="button"
-              onClick={() => router.push('/admin/profile')}
+            <Link
+              href="/admin/profile"
+              prefetch
               className="hidden sm:flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-primary/10 dark:hover:bg-white/10"
-              title="My Profile"
+              title="My Profile — /admin/profile"
             >
               <div className="text-right">
                 <p className="text-[12px] font-semibold leading-tight text-[#1D2235] dark:text-blue-50">
@@ -341,7 +523,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary/20 bg-primary text-[11px] font-bold text-white">
                 {displayInitials}
               </div>
-            </button>
+            </Link>
 
             <button
               type="button"
@@ -358,6 +540,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 md:p-4">{children}</main>
+        <BookingIntelligenceLayer />
       </div>
     </div>
   )

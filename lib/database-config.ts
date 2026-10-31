@@ -10,13 +10,23 @@ export function isDatabaseConfigured() {
   ].some((marker) => normalized.includes(marker))
 }
 
-/** Longer connect timeout helps Supabase pooler / free-tier wake-ups. */
+/**
+ * Supabase pooler / free-tier wake-ups often fail the first TCP attempt.
+ * Longer timeouts + a small pool limit keep Prisma from hammering PgBouncer.
+ */
 export function withPrismaConnectionParams(url: string | undefined) {
   if (!url) return url
   const lower = url.toLowerCase()
   const parts: string[] = []
   if (!lower.includes('connect_timeout=')) parts.push('connect_timeout=30')
+  if (!lower.includes('pool_timeout=')) parts.push('pool_timeout=30')
+  if (!lower.includes('connection_limit=')) parts.push('connection_limit=5')
   if (!lower.includes('sslmode=')) parts.push('sslmode=require')
+  const usesPooler =
+    lower.includes('pooler.supabase.com') ||
+    lower.includes(':6543/') ||
+    lower.includes(':6543?')
+  if (usesPooler && !lower.includes('pgbouncer=')) parts.push('pgbouncer=true')
   if (!parts.length) return url
   const joiner = url.includes('?') ? '&' : '?'
   return `${url}${joiner}${parts.join('&')}`

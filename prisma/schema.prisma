@@ -75,6 +75,11 @@ enum ConditionStage {
   RETURN
 }
 
+enum ExtraChargeStage {
+  BOOKING
+  RETURN
+}
+
 enum PayoutStatus {
   DRAFT
   APPROVED
@@ -130,12 +135,22 @@ model User {
   status       UserStatus @default(ACTIVE)
   isSuperAdmin Boolean    @default(false)
   avatarUrl    String?
+  /// When the staff last opened Notifications (clears bell badge).
+  notificationsViewedAt DateTime?
+  /// Accumulated risk from suspicious delete patterns (bulk / consecutive).
+  suspiciousScore       Int       @default(0)
+  /// Running streak of deletes without a calming action (create/update).
+  consecutiveDeletes    Int       @default(0)
+  lastDeleteAt          DateTime?
+  /// True after we already emailed for the current consecutive streak (>5).
+  consecutiveDeleteAlerted Boolean @default(false)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   auditLogs            AuditLog[]
   attachmentsUploaded  Attachment[]
   broadcastsCreated    Broadcast[]
+  notificationReads    StaffNotificationRead[]
 
   @@index([roleId])
   @@map("users")
@@ -290,8 +305,10 @@ model CarClient {
   id              String       @id @default(cuid())
   fullName        String
   phone           String       @unique
-  email           String?
+  /// Unique when set; multiple clients may omit email (NULL allowed).
+  email           String?      @unique
   idOrPassportNo  String       @unique
+  /// Not unique — family members may share a licence in rare cases.
   licenceNo       String
   licenceExpiry   DateTime?
   physicalAddress String?
@@ -300,17 +317,25 @@ model CarClient {
   secondContact   String?
   status          ClientStatus @default(ACTIVE)
   notes           String?
+  /// Loyalty balance — cleared to 0 when suspended.
+  loyaltyPoints   Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   bookings        CarBooking[]
+  loyaltyLedger   LoyaltyLedger[]
 
+  /// Btree for exact/sort; trgm GIN indexes added in migration for live search.
   @@index([fullName])
+  @@index([licenceNo])
+  @@index([status, fullName])
   @@map("car_clients")
 }
 
 model PenaltyRule {
   id            String          @id @default(cuid())
   name          String
+  /// null = default rule for vehicle types without a specific rule
+  vehicleType   VehicleType?
   graceMinutes  Int             @default(0)
   rate          Float
   rateUnit      PenaltyRateUnit
@@ -323,7 +348,7 @@ model PenaltyRule {
   bookings      CarBooking[]
   penalties     CarPenalty[]
 
-  @@index([active, effectiveFrom])
+  @@index([active, vehicleType, effectiveFrom])
   @@map("penalty_rules")
 }
 
@@ -351,12 +376,18 @@ model CarBooking {
   createdBy        String?
   dispatchedAt     DateTime?
   returnedAt       DateTime?
+  /// Points awarded after RETURNED + zero balance (null = not yet / not eligible).
+  loyaltyPointsEarned   Int?
+  loyaltyPointsRedeemed Int              @default(0)
+  loyaltyDiscountKes    Float            @default(0)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   checks           ConditionCheck[]
   extensions       CarHireExtension[]
+  extraCharges     BookingExtraCharge[]
   penalties        CarPenalty[]
   payments         CarPayment[]
+  loyaltyLedger    LoyaltyLedger[]
 
   @@index([clientId])
   @@index([vehicleId])
@@ -365,19 +396,37 @@ model CarBooking {
 }
 
 model ConditionCheck {
-  id           String         @id @default(cuid())
-  bookingId    String
-  booking      CarBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  stage        ConditionStage
-  dentsNotes   String?
-  fuelLevel    Int?
-  odometer     Int?
-  componentsOk Boolean        @default(true)
-  checkedBy    String?
-  createdAt    DateTime       @default(now())
+  id              String         @id @default(cuid())
+  bookingId       String
+  booking         CarBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  stage           ConditionStage
+  dentsNotes      String?
+  fuelLevel       Int?
+  odometer        Int?
+  componentsOk    Boolean        @default(true)
+  checkedBy       String?
+  /// Return condition rating 1–5 (RETURN stage).
+  conditionRating Int?
+  /// Required when rating ≤ 2.
+  decreaseComment String?
+  createdAt       DateTime       @default(now())
 
   @@unique([bookingId, stage])
   @@map("condition_checks")
+}
+
+/// Optional client-facing extras (fuel, split, cleaning) added at booking or return.
+model BookingExtraCharge {
+  id          String           @id @default(cuid())
+  bookingId   String
+  booking     CarBooking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  stage       ExtraChargeStage
+  description String
+  amount      Float
+  createdAt   DateTime         @default(now())
+
+  @@index([bookingId])
+  @@map("booking_extra_charges")
 }
 
 model CarHireExtension {
@@ -520,4 +569,65 @@ model CarHireSetting {
   updatedAt DateTime @updatedAt
 
   @@map("car_hire_settings")
+}
+
+enum LoyaltyLedgerKind {
+  EARN
+  REDEEM
+  ADJUST
+  RECALC
+}
+
+/// Audit trail for client loyalty points (earn / redeem / suspend clear / recalc).
+model LoyaltyLedger {
+  id           String            @id @default(cuid())
+  clientId     String
+  client       CarClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  bookingId    String?
+  booking      CarBooking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  kind         LoyaltyLedgerKind
+  points       Int
+  balanceAfter Int
+  note         String?
+  createdBy    String?
+  createdAt    DateTime          @default(now())
+  /// Idempotency for earns: `earn:{bookingId}`
+  sourceKey    String?           @unique
+
+  @@index([clientId, createdAt])
+  @@index([bookingId])
+  @@map("loyalty_ledger")
+}
+
+/// Persisted staff inbox — stays until an admin deletes. Bell badge = unread per staff (read receipts).
+model StaffNotification {
+  id        String    @id @default(cuid())
+  /// Stable key from live source (e.g. doc:id, booking:overdue:id) so sync can upsert.
+  sourceKey String    @unique
+  kind      String
+  title     String
+  message   String
+  href      String
+  urgency   String    @default("info")
+  eventAt   DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  reads     StaffNotificationRead[]
+
+  @@index([deletedAt, createdAt])
+  @@map("staff_notifications")
+}
+
+/// Per-staff “mark as read” — bell badge stays until each notice is marked read (or deleted).
+model StaffNotificationRead {
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   StaffNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  readAt         DateTime          @default(now())
+
+  @@id([userId, notificationId])
+  @@index([userId, readAt])
+  @@map("staff_notification_reads")
 }

@@ -1,82 +1,104 @@
-import { prisma } from '@/lib/prisma'
+import { redirect } from 'next/navigation'
 import { softQuery } from '@/lib/errors'
-import { Card, SectionHead, StatusPill, Th, PageShell } from '@/components/admin/ui'
+import { getSessionProfile } from '@/lib/auth/session'
+import { listStaffNotifications } from '@/lib/intelligence/notifications'
+import { Card, SectionHead, PageShell } from '@/components/admin/ui'
 import KpiPanel from '@/components/admin/KpiPanel'
 import ServiceAlert from '@/components/admin/ServiceAlert'
+import NotificationsInbox from '@/components/admin/NotificationsInbox'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NotificationsPage() {
-  const loaded = await softQuery(() =>
-    Promise.all([
-      prisma.messageLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
-      prisma.messageLog.groupBy({ by: ['status'], _count: true }),
-    ]),
-  )
-  const [messages, counts] = loaded.data ?? [[], []]
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/admin/login')
 
-  const statusIcons: Record<string, string> = {
-    QUEUED: 'schedule',
-    SENT: 'check_circle',
-    FAILED: 'error',
-    DELIVERED: 'mark_email_read',
-  }
+  const loaded = await softQuery(() => listStaffNotifications(profile.id))
+  const notices = loaded.data ?? []
 
-  const kpiItems = counts.map((item) => ({
-    id: item.status,
-    label: item.status,
-    value: String(item._count),
-    numericValue: item._count,
-    icon: statusIcons[item.status] ?? 'notifications',
-    kind: 'count' as const,
-  }))
+  const overdue = notices.filter((n) => n.kind === 'overdue').length
+  const ending = notices.filter((n) => n.kind === 'ending_soon').length
+  const latePay = notices.filter((n) => n.kind === 'late_payment').length
+  const docs = notices.filter((n) => n.kind === 'document_expiry').length
+  const newCost = notices.filter((n) => n.kind === 'new_cost').length
+  const unread = notices.filter((n) => !n.read).length
+
+  const kpiItems = [
+    {
+      id: 'unread',
+      label: 'Unread',
+      value: String(unread),
+      numericValue: unread,
+      icon: 'mark_email_unread',
+      kind: 'count' as const,
+    },
+    {
+      id: 'overdue',
+      label: 'Overdue hires',
+      value: String(overdue),
+      numericValue: overdue,
+      icon: 'warning',
+      kind: 'count' as const,
+    },
+    {
+      id: 'ending',
+      label: 'Ending soon',
+      value: String(ending),
+      numericValue: ending,
+      icon: 'schedule',
+      kind: 'count' as const,
+    },
+    {
+      id: 'docs',
+      label: 'Document expiry',
+      value: String(docs),
+      numericValue: docs,
+      icon: 'contract',
+      kind: 'count' as const,
+    },
+    {
+      id: 'late-pay',
+      label: 'Late / unpaid',
+      value: String(latePay),
+      numericValue: latePay,
+      icon: 'payments',
+      kind: 'count' as const,
+    },
+    {
+      id: 'costs',
+      label: 'New costs (7 days)',
+      value: String(newCost),
+      numericValue: newCost,
+      icon: 'receipt_long',
+      kind: 'count' as const,
+    },
+  ]
 
   return (
     <PageShell>
-      <SectionHead
-        title="Communication Queue"
-        subtitle="SMS and email delivery audit"
-      />
+      <SectionHead title="Notifications" />
       {loaded.error ? <ServiceAlert message={loaded.error} /> : null}
-      {kpiItems.length > 0 ? (
-        <KpiPanel items={kpiItems} title="Message status" />
-      ) : (
-        <Card className="p-6 text-sm text-on-surface-variant">No messages have been queued yet.</Card>
-      )}
+      <KpiPanel items={kpiItems} hideHeader />
+
       <Card className="overflow-hidden">
-        <div className="border-b border-outline-variant px-5 py-4">
-          <p className="font-semibold text-on-surface">SMS & email audit log</p>
-          <p className="mt-0.5 text-xs text-on-surface-variant">
-            The scheduler queues reminders, overdue notices and expiry alerts. A configured
-            provider worker delivers queued messages.
+        {loaded.error ? (
+          <p className="p-8 text-center text-sm text-on-surface-variant">
+            Could not load notifications.
           </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <Th cols={['Created', 'Recipient', 'Channel', 'Template', 'Destination', 'Status']} />
-            <tbody className="divide-y divide-outline-variant">
-              {messages.map((message) => (
-                <tr key={message.id} className="hover:bg-surface-container-low/60">
-                  <td className="whitespace-nowrap p-3">{message.createdAt.toLocaleString()}</td>
-                  <td className="p-3">{message.recipientName ?? message.recipientType}</td>
-                  <td className="p-3">{message.channel}</td>
-                  <td className="p-3">{message.template.replaceAll('_', ' ')}</td>
-                  <td className="p-3">{message.destination}</td>
-                  <td className="p-3">
-                    <StatusPill status={message.status} />
-                  </td>
-                </tr>
-              ))}
-              {!messages.length && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-on-surface-variant">
-                    {loaded.error ? 'Could not load messages.' : 'No messages have been queued.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        ) : (
+          <NotificationsInbox
+            notices={notices.map((n) => ({
+              dbId: n.dbId,
+              kind: n.kind,
+              urgency: n.urgency,
+              title: n.title,
+              message: n.message,
+              href: n.href,
+              at: n.at,
+              read: n.read,
+            }))}
+          />
+        )}
       </Card>
     </PageShell>
   )

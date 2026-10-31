@@ -3,21 +3,13 @@ import { softQuery } from '@/lib/errors'
 import { getSessionProfile } from '@/lib/auth/session'
 import { hasPermission } from '@/lib/rbac/require'
 import { PERMISSIONS } from '@/lib/rbac/registry'
-import {
-  checkInCarBooking,
-  createCarBooking,
-  createPenaltyRule,
-  dispatchCarBooking,
-  recordCarPayment,
-} from '@/app/actions/car-hire'
 import { Card, Th, StatusPill, SectionHead, PageShell } from '@/components/admin/ui'
 import ServiceAlert from '@/components/admin/ServiceAlert'
+import NewBookingButton from '@/components/admin/NewBookingButton'
+import PenaltySettingsButton from '@/components/admin/PenaltySettingsButton'
+import BookingViewButton from '@/components/admin/BookingViewButton'
 
 export const dynamic = 'force-dynamic'
-const field =
-  'w-full border-0 border-b border-outline-variant bg-transparent px-0 py-2 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-0'
-const cta =
-  'rounded-full bg-gradient-to-r from-primary to-primary-container px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(12,92,240,0.28)]'
 
 export default async function BookingsPage({
   searchParams,
@@ -29,129 +21,73 @@ export default async function BookingsPage({
   const canExport = profile
     ? profile.isSuperAdmin || (await hasPermission(profile, PERMISSIONS.REPORT_EXPORT))
     : false
+  const isSuperAdmin = Boolean(profile?.isSuperAdmin)
   const loaded = await softQuery(() =>
     Promise.all([
       prisma.carClient.findMany({ where: { status: 'ACTIVE' }, orderBy: { fullName: 'asc' } }),
       prisma.carVehicle.findMany({ where: { status: 'AVAILABLE' }, orderBy: { regNumber: 'asc' } }),
       prisma.carBooking.findMany({
-        include: { client: true, vehicle: true, payments: { where: { status: 'COMPLETED' } } },
+        include: {
+          client: true,
+          vehicle: true,
+          payments: { orderBy: { createdAt: 'desc' } },
+          checks: { orderBy: { createdAt: 'desc' } },
+          penalties: { orderBy: { createdAt: 'desc' } },
+          extraCharges: { orderBy: { createdAt: 'asc' } },
+          penaltyRule: true,
+        },
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.penaltyRule.findFirst({ where: { active: true }, orderBy: { effectiveFrom: 'desc' } }),
+      prisma.penaltyRule.findMany({
+        where: { active: true },
+        orderBy: { effectiveFrom: 'desc' },
+      }),
     ]),
   )
-  const [clients, vehicles, bookings, rule] = loaded.data ?? [[], [], [], null]
+  const [clients, vehicles, bookings, rules] = loaded.data ?? [[], [], [], []]
   const openNewBooking = Boolean(preselectClientId)
+  const defaultRule = rules[0] ?? null
+  const penaltyLabel = defaultRule
+    ? `${defaultRule.graceMinutes} min grace; KES ${defaultRule.rate}/${defaultRule.rateUnit.toLowerCase()}${
+        rules.length > 1 ? ` (+${rules.length - 1} more)` : ''
+      }`
+    : 'No active rule'
+
   return (
     <PageShell>
       <SectionHead
-        title="Bookings, Dispatch & Check-in"
-        subtitle="Create hires, dispatch, check in, and record payments"
+        title="Bookings"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {canExport ? (
+              <a
+                href="/api/export/car-hire?report=bookings"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-[12px] font-semibold text-on-surface shadow-sm transition hover:border-primary hover:text-primary dark:border-[#1e3a5f] dark:bg-[#0a1628]"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                Export
+              </a>
+            ) : null}
+            {isSuperAdmin ? <PenaltySettingsButton currentLabel={penaltyLabel} /> : null}
+            <NewBookingButton
+              clients={clients.map((c) => ({
+                id: c.id,
+                label: `${c.fullName} · ${c.phone}`,
+              }))}
+              vehicles={vehicles.map((v) => ({
+                id: v.id,
+                label: `${v.regNumber} · ${v.make} ${v.model} · KES ${v.dailyRate.toLocaleString()}`,
+                dailyRate: v.dailyRate,
+              }))}
+              defaultClientId={preselectClientId}
+              autoOpen={openNewBooking}
+            />
+          </div>
+        }
       />
       {loaded.error ? <ServiceAlert message={loaded.error} /> : null}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="overflow-hidden">
-          <details open={openNewBooking || undefined}>
-            <summary className="cursor-pointer list-none border-b border-outline-variant px-5 py-4 font-semibold text-primary [&::-webkit-details-marker]:hidden">
-              New booking
-            </summary>
-            <form
-              action={async (data) => {
-                'use server'
-                await createCarBooking(data)
-              }}
-              className="mt-1 grid gap-4 px-5 py-5 sm:grid-cols-2"
-            >
-              <select className={field} name="clientId" required defaultValue={preselectClientId}>
-                <option value="">Select client *</option>
-                {clients.map((c) => (
-                  <option value={c.id} key={c.id}>
-                    {c.fullName} · {c.phone}
-                  </option>
-                ))}
-              </select>
-              <select className={field} name="vehicleId" required>
-                <option value="">Available vehicle *</option>
-                {vehicles.map((v) => (
-                  <option value={v.id} key={v.id}>
-                    {v.regNumber} · {v.make} {v.model}
-                  </option>
-                ))}
-              </select>
-              <label className="text-xs text-on-surface-variant">
-                Start
-                <input className={`${field} mt-1 block`} name="startAt" type="datetime-local" required />
-              </label>
-              <label className="text-xs text-on-surface-variant">
-                Expected return
-                <input
-                  className={`${field} mt-1 block`}
-                  name="expectedReturnAt"
-                  type="datetime-local"
-                  required
-                />
-              </label>
-              <input className={field} name="dailyRate" type="number" min="1" placeholder="Daily rate *" required />
-              <input className={field} name="dispatchNotes" placeholder="Booking notes" />
-              <button className={`${cta} sm:col-span-2 sm:justify-self-start`}>Create booking</button>
-            </form>
-          </details>
-        </Card>
-        <Card className="overflow-hidden">
-          <details>
-            <summary className="cursor-pointer list-none border-b border-outline-variant px-5 py-4 font-semibold text-primary [&::-webkit-details-marker]:hidden">
-              Penalty settings
-            </summary>
-            <div className="px-5 py-5">
-              <p className="text-xs text-on-surface-variant">
-                Current:{' '}
-                {rule
-                  ? `${rule.graceMinutes} min grace; KES ${rule.rate}/${rule.rateUnit.toLowerCase()}`
-                  : 'No active rule'}
-              </p>
-              <form
-                action={async (data) => {
-                  'use server'
-                  await createPenaltyRule(data)
-                }}
-                className="mt-4 grid gap-4 sm:grid-cols-2"
-              >
-                <input className={field} name="name" placeholder="Rule name *" required />
-                <input
-                  className={field}
-                  name="graceMinutes"
-                  type="number"
-                  min="0"
-                  placeholder="Grace minutes *"
-                  required
-                />
-                <input
-                  className={field}
-                  name="rate"
-                  type="number"
-                  min="0"
-                  placeholder="Penalty rate *"
-                  required
-                />
-                <select className={field} name="rateUnit">
-                  <option value="HOUR">Per hour</option>
-                  <option value="DAY">Per day</option>
-                </select>
-                <input className={field} name="cap" type="number" min="1" placeholder="Optional cap" />
-                <button className={`${cta} sm:justify-self-start`}>Activate rule</button>
-              </form>
-            </div>
-          </details>
-        </Card>
-      </div>
-      {canExport ? (
-        <a
-          href="/api/export/car-hire?report=bookings"
-          className="inline-flex rounded-full border border-outline-variant bg-white px-5 py-2.5 text-sm font-medium text-on-surface shadow-sm hover:border-primary hover:text-primary"
-        >
-          Export booking report
-        </a>
-      ) : null}      <Card className="overflow-hidden">
+
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <Th
@@ -162,12 +98,15 @@ export default async function BookingsPage({
                 'Charge',
                 'Paid / Balance',
                 'Status',
-                'Workflow',
+                '',
               ]}
             />
             <tbody className="divide-y divide-outline-variant">
               {bookings.map((booking) => {
-                const paid = booking.payments.reduce((sum, payment) => sum + payment.amount, 0)
+                const paid = booking.payments
+                  .filter((p) => p.status === 'COMPLETED')
+                  .reduce((sum, payment) => sum + payment.amount, 0)
+                const balance = Math.max(0, booking.totalCharge - (booking.loyaltyDiscountKes ?? 0) - paid)
                 return (
                   <tr key={booking.id} className="hover:bg-surface-container-low/60">
                     <td className="px-4 py-3 font-mono font-semibold">{booking.reference}</td>
@@ -190,108 +129,72 @@ export default async function BookingsPage({
                     <td className="px-4 py-3">
                       KES {paid.toLocaleString()}
                       <small className="block text-amber-700">
-                        Balance {Math.max(0, booking.totalCharge - paid).toLocaleString()}
+                        Balance {balance.toLocaleString()}
                       </small>
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={booking.status} />
                     </td>
-                    <td className="min-w-52 px-4 py-3">
-                      {booking.status === 'RESERVED' && (
-                        <details>
-                          <summary className="cursor-pointer text-primary">Dispatch</summary>
-                          <form
-                            action={async (data) => {
-                              'use server'
-                              await dispatchCarBooking(booking.id, data)
-                            }}
-                            className="grid gap-2 pt-2"
-                          >
-                            <input className={field} name="dentsNotes" placeholder="Existing dents" />
-                            <input
-                              className={field}
-                              name="fuelLevel"
-                              type="number"
-                              min="0"
-                              max="100"
-                              placeholder="Fuel %"
-                            />
-                            <input className={field} name="odometer" type="number" placeholder="Odometer" />
-                            <input type="hidden" name="componentsOk" value="true" />
-                            <button className="rounded-full bg-primary px-3 py-2 text-white text-xs font-semibold">
-                              Confirm dispatch
-                            </button>
-                          </form>
-                        </details>
-                      )}
-                      {['DISPATCHED', 'OVERDUE'].includes(booking.status) && (
-                        <details>
-                          <summary className="cursor-pointer text-primary">Check in</summary>
-                          <form
-                            action={async (data) => {
-                              'use server'
-                              await checkInCarBooking(booking.id, data)
-                            }}
-                            className="grid gap-2 pt-2"
-                          >
-                            <input
-                              className={field}
-                              name="actualReturnAt"
-                              type="datetime-local"
-                              required
-                            />
-                            <input
-                              className={field}
-                              name="dentsNotes"
-                              placeholder="Return condition / dents"
-                            />
-                            <input
-                              className={field}
-                              name="fuelLevel"
-                              type="number"
-                              min="0"
-                              max="100"
-                              placeholder="Fuel %"
-                            />
-                            <input className={field} name="odometer" type="number" placeholder="Odometer" />
-                            <input type="hidden" name="componentsOk" value="true" />
-                            <button className="rounded-full bg-primary px-3 py-2 text-white text-xs font-semibold">
-                              Calculate & check in
-                            </button>
-                          </form>
-                        </details>
-                      )}
-                      <details>
-                        <summary className="cursor-pointer text-primary">Record payment</summary>
-                        <form
-                          action={async (data) => {
-                            'use server'
-                            await recordCarPayment(data)
-                          }}
-                          className="grid gap-2 pt-2"
-                        >
-                          <input type="hidden" name="bookingId" value={booking.id} />
-                          <input
-                            className={field}
-                            name="amount"
-                            type="number"
-                            min=".01"
-                            step=".01"
-                            placeholder="Amount"
-                            required
-                          />
-                          <select className={field} name="method">
-                            <option>MPESA</option>
-                            <option>CASH</option>
-                            <option>BANK</option>
-                            <option>OTHER</option>
-                          </select>
-                          <input className={field} name="mpesaRef" placeholder="M-Pesa reference" />
-                          <button className="rounded-full bg-primary px-3 py-2 text-white text-xs font-semibold">
-                            Save payment
-                          </button>
-                        </form>
-                      </details>
+                    <td className="px-4 py-3 text-right">
+                      <BookingViewButton
+                        booking={{
+                          id: booking.id,
+                          reference: booking.reference,
+                          status: booking.status,
+                          clientName: booking.client.fullName,
+                          clientPhone: booking.client.phone,
+                          vehicleLabel: `${booking.vehicle.make} ${booking.vehicle.model} (${booking.vehicle.regNumber})`,
+                          startAt: booking.startAt.toISOString(),
+                          expectedReturnAt: booking.expectedReturnAt.toISOString(),
+                          dispatchedAt: booking.dispatchedAt?.toISOString() ?? null,
+                          returnedAt: booking.returnedAt?.toISOString() ?? null,
+                          days: booking.days,
+                          dailyRate: booking.dailyRate,
+                          baseCharge: booking.baseCharge,
+                          additionalCharge: booking.additionalCharge,
+                          penaltyAmount: booking.penaltyAmount,
+                          totalCharge: booking.totalCharge,
+                          dispatchNotes: booking.dispatchNotes,
+                          returnNotes: booking.returnNotes,
+                          paid,
+                          balance,
+                          payments: booking.payments.map((p) => ({
+                            id: p.id,
+                            amount: p.amount,
+                            method: p.method,
+                            mpesaRef: p.mpesaRef,
+                            paidAt: p.paidAt?.toISOString() ?? null,
+                            status: p.status,
+                          })),
+                          checks: booking.checks.map((c) => ({
+                            stage: c.stage,
+                            dentsNotes: c.dentsNotes,
+                            fuelLevel: c.fuelLevel,
+                            odometer: c.odometer,
+                            checkedBy: c.checkedBy,
+                            createdAt: c.createdAt.toISOString(),
+                          })),
+                          penalties: booking.penalties.map((p) => ({
+                            minutesLate: p.minutesLate,
+                            amount: p.amount,
+                            calculationNotes: p.calculationNotes,
+                            createdAt: p.createdAt.toISOString(),
+                          })),
+                          extraCharges: (booking.extraCharges ?? []).map((e) => ({
+                            stage: e.stage,
+                            description: e.description,
+                            amount: e.amount,
+                          })),
+                          penaltyRule: booking.penaltyRule
+                            ? {
+                                graceMinutes: booking.penaltyRule.graceMinutes,
+                                rate: booking.penaltyRule.rate,
+                                rateUnit: booking.penaltyRule.rateUnit,
+                                cap: booking.penaltyRule.cap,
+                              }
+                            : null,
+                        }}
+                      />
                     </td>
                   </tr>
                 )

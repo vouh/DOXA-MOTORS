@@ -344,9 +344,10 @@ After schema apply, in Supabase **SQL Editor**:
 
 Buckets:
 
-- `car-hire-docs` / private docs — ID copies, licences, logbooks, agreements  
-- `documents` — private (receipts, owner statements, reports)  
-- `vehicles` — public read (vehicle photos) where needed
+- `car-hire-docs` / private docs — ID copies, licences, logbooks, agreements (max **5 MB**; PDF, Excel, Word, CSV, JPG, PNG; app compresses PDF/images on upload)  
+- `vehicles` — authenticated read (vehicle photos)
+
+`storage.sql` sets bucket size/MIME limits and deny-by-default object policies (uploads go through server actions + service role). Re-run it after pulling so the dashboard shows **4 policies** on `car-hire-docs`.
 
 Never put the service role key in browser code.
 
@@ -359,6 +360,8 @@ Never put the service role key in browser code.
 1. Create API key → `RESEND_API_KEY`.
 2. Verify domain or use Resend test domain locally.
 3. Set `FROM_EMAIL` (e.g. `noreply@doxacarhire.com`).
+4. Until the domain is verified, set `RESEND_TEST_EMAIL` to your onboarding inbox — booking confirmations and other mail redirect there.
+5. Booking confirmation: email sends on create; SMS queues until `SMS_*` keys are set.
 
 Without a key, the app skips sending and continues.
 
@@ -388,9 +391,9 @@ Without SMS keys, the app skips and continues.
 
 1. Apply schema that includes `permissions`, `roles`, `role_permissions`, `users.roleId`, `rbac_meta`.
 2. Sync permission registry from code → DB (`lib/rbac/registry.ts` via seed).
-3. Seed creates the **Super Admin** system role only. Create Clerk / Yard / Accountant (or custom) roles in `/admin/staff` when needed (see [Part C](#c--rbac-design)).
+3. Seed creates the **Super Admin** system role only. Create Clerk / Yard / Accountant (or custom) roles in `/admin/settings` when needed (see [Part C](#c--rbac-design)).
 4. `npm run db:seed` then `npm run db:bootstrap-auth` so the Auth user matches the Prisma `User` row.
-5. Log in as Super Admin → `/admin/staff` → invite staff / create roles / assign by email.
+5. Log in as Super Admin → `/admin/settings` → invite staff / create roles / assign by email.
 6. Confirm role menus: e.g. Clerk cannot open Finance exports; Yard cannot edit penalty rules.
 
 **Technical checklist**
@@ -412,7 +415,7 @@ Without SMS keys, the app skips and continues.
 | ----- | ---- | -------------- |
 | `superadmin@doxacarhire.com` | Super Admin / Director | `SuperAdmin@2026!` |
 
-No other staff accounts are seeded. Extra roles and users are created in `/admin/staff`.
+No other staff accounts are seeded. Extra roles and users are created in `/admin/settings`.
 
 
 ---
@@ -732,7 +735,7 @@ List users → assign **one** role by email → `staff:role:assign` → audit �
 | Role                               | Seeded?                                                   |
 | ---------------------------------- | --------------------------------------------------------- |
 | **Super Admin** (system)           | **Yes** — only staff account at seed; all permission keys |
-| Clerk / Yard / Accountant / custom | **No** — Super Admin creates roles in `/admin/staff`      |
+| Clerk / Yard / Accountant / custom | **No** — Super Admin creates roles in `/admin/settings`      |
 
 
 Same Sweet1ne rule: unlimited admin-created roles; no code deploy to add a role name.

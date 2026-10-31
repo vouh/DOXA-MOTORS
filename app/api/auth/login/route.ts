@@ -152,7 +152,11 @@ export async function POST(req: Request) {
       status: profile.status,
     })
   } catch (err) {
-    console.error('login error', err)
-    return NextResponse.json({ error: 'Login failed.' }, { status: 500 })
+    const { friendlyErrorMessage, isConnectionError, logDevError } = await import('@/lib/errors')
+    logDevError('login', err)
+    return NextResponse.json(
+      { error: friendlyErrorMessage(err) },
+      { status: isConnectionError(err) ? 503 : 500 },
+    )
   }
 }
